@@ -71,9 +71,7 @@ fn append_operation_details(blocks: &mut Vec<SlackBlock>, operation: &SquadsOper
                     format!("\u{2022} `{}` ({})", m.key, perms)
                 })
                 .collect();
-            let authority = config_authority
-                .as_deref()
-                .unwrap_or("None (autonomous)");
+            let authority = config_authority.as_deref().unwrap_or("None (autonomous)");
             blocks.push(SlackBlock::section_markdown(&format!(
                 "*Threshold:* {threshold}\n*Config Authority:* {authority}\n*Members:*\n{}",
                 member_lines.join("\n")

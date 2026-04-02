@@ -1,7 +1,7 @@
 mod config;
 
 use config::Config;
-use lambda_http::{run, service_fn, Body, Request, Response};
+use lambda_http::{Body, Request, Response, run, service_fn};
 use multisig_monitor_core::{slack, squads, webhook};
 use tracing_subscriber::EnvFilter;
 

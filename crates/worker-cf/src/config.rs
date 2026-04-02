@@ -1,5 +1,5 @@
 use multisig_monitor_core::error::MonitorError;
-use multisig_monitor_core::filter::{parse_comma_list, NotificationFilter};
+use multisig_monitor_core::filter::{NotificationFilter, parse_comma_list};
 use worker::Env;
 
 #[derive(Debug, Clone)]

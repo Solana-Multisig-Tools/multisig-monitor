@@ -9,8 +9,8 @@ use crate::filter::NotificationFilter;
 use crate::webhook::types::{CompiledInstruction, RawTransaction};
 use accounts::{layout_for, resolve_pubkey};
 use config_action::*;
-use discriminator::{build_discriminator_map, match_discriminator, InstructionKind};
-use types::{DetectedOperation, MemberEntry, Permissions, SquadsOperation, SQUADS_PROGRAM_ID};
+use discriminator::{InstructionKind, build_discriminator_map, match_discriminator};
+use types::{DetectedOperation, MemberEntry, Permissions, SQUADS_PROGRAM_ID, SquadsOperation};
 
 /// Extracts all Squads v4 operations from a batch of raw transactions,
 /// filtered to only the configured multisig addresses and matching the notification filter.
@@ -287,7 +287,7 @@ mod tests {
         let disc_map = build_discriminator_map();
         let disc = disc_map
             .iter()
-            .find(|(_, &v)| v == kind)
+            .find(|&(_, &v)| v == kind)
             .map(|(k, _)| *k)
             .unwrap();
 
