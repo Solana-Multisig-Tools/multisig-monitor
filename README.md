@@ -385,12 +385,21 @@ Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 
 ## Endpoints
 
+The webhook and health check paths differ depending on the deployment target. When configuring the Helius webhook URL, use the correct path for your runtime:
+
+| Runtime | Webhook path | Health path |
+|---|---|---|
+| Rust CF Worker | `/webhook` | `/health` |
+| Rust Lambda | `/webhook` | `/health` |
+| TS CF Worker | `/webhook` | `/health` |
+| TS Vercel | `/api/webhook` | `/api/health` |
+
+Vercel uses the `/api/` prefix because its routing is based on the `api/` file directory convention. All other runtimes use the root path.
+
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/webhook` | Receives Helius raw webhook payloads. Validates the `Authorization` header, parses transactions, and sends Slack notifications. Returns `200` on success. |
-| `GET` | `/health` | Returns `200 ok`. Use for uptime monitoring. |
-
-Note: Vercel Edge Functions use the `/api/` prefix (`/api/webhook`, `/api/health`).
+| `POST` | `/webhook` (or `/api/webhook` on Vercel) | Receives Helius raw webhook payloads. Validates the `Authorization` header, parses transactions, and sends Slack notifications. Returns `200` on success. |
+| `GET` | `/health` (or `/api/health` on Vercel) | Returns `200 ok`. Use for uptime monitoring. |
 
 ## Squads v4 Program
 
