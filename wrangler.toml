@@ -1,0 +1,14 @@
+name = "multisig-monitor"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-09-25"
+
+[build]
+command = "cargo install -q worker-build && worker-build --release"
+
+[vars]
+# Comma-separated Squads v4 multisig addresses to monitor
+MULTISIG_ADDRESSES = ""
+
+# Secrets (set via `wrangler secret put`):
+# HELIUS_AUTH_TOKEN  — shared secret for webhook auth header validation
+# SLACK_WEBHOOK_URL  — Slack incoming webhook endpoint
