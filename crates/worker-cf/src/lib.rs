@@ -43,7 +43,7 @@ async fn send_slack(
 ) -> std::result::Result<(), MonitorError> {
     let body = slack::serialize_payload(op)?;
 
-    let mut headers = Headers::new();
+    let headers = Headers::new();
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| MonitorError::Platform(e.to_string()))?;

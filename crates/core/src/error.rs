@@ -24,22 +24,3 @@ pub enum MonitorError {
     #[error("config error: {0}")]
     Config(String),
 }
-
-/// Truncates a base58 address to `first4...last4` for display.
-pub fn truncate_address(addr: &str) -> String {
-    if addr.len() <= 12 {
-        return addr.to_string();
-    }
-    format!("{}...{}", &addr[..4], &addr[addr.len() - 4..])
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_truncate_address() {
-        assert_eq!(truncate_address("7nYBkp3k"), "7nYBkp3k");
-        assert_eq!(truncate_address("7nYB1234567890abcdef3kFd"), "7nYB...3kFd");
-    }
-}

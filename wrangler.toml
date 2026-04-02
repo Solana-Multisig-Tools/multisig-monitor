@@ -1,5 +1,5 @@
 name = "multisig-monitor"
-main = "build/worker/shim.mjs"
+main = "crates/worker-cf/build/worker/shim.mjs"
 compatibility_date = "2024-09-25"
 
 [build]

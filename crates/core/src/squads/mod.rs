@@ -34,8 +34,19 @@ fn extract_from_transaction(
     disc_map: &HashMap<[u8; 8], InstructionKind>,
     filter: &NotificationFilter,
 ) -> Vec<DetectedOperation> {
-    let account_keys = &tx.transaction.message.account_keys;
-    let signature = &tx.signature;
+    let signature = match tx.signature() {
+        Some(s) => s.to_string(),
+        None => return vec![],
+    };
+
+    // Resolve AccountKeyEntry (plain string or structured object) to plain pubkey strings
+    let account_keys: Vec<String> = tx
+        .transaction
+        .message
+        .account_keys
+        .iter()
+        .map(|k| k.pubkey().to_string())
+        .collect();
 
     let top_level = tx
         .transaction
@@ -45,8 +56,8 @@ fn extract_from_transaction(
         .filter_map(|instr| {
             process_instruction(
                 instr,
-                account_keys,
-                signature,
+                &account_keys,
+                &signature,
                 monitored_multisigs,
                 disc_map,
                 filter,
@@ -63,8 +74,8 @@ fn extract_from_transaction(
         .filter_map(|instr| {
             process_instruction(
                 instr,
-                account_keys,
-                signature,
+                &account_keys,
+                &signature,
                 monitored_multisigs,
                 disc_map,
                 filter,
@@ -265,10 +276,13 @@ mod tests {
     fn make_squads_instruction(
         kind: InstructionKind,
         account_keys: &[&str],
-    ) -> (CompiledInstruction, Vec<String>) {
-        let mut keys: Vec<String> = account_keys.iter().map(|s| s.to_string()).collect();
+    ) -> (CompiledInstruction, Vec<AccountKeyEntry>) {
+        let mut keys: Vec<AccountKeyEntry> = account_keys
+            .iter()
+            .map(|s| AccountKeyEntry::Plain(s.to_string()))
+            .collect();
         let program_idx = keys.len() as u8;
-        keys.push(SQUADS_PROGRAM_ID.to_string());
+        keys.push(AccountKeyEntry::Plain(SQUADS_PROGRAM_ID.to_string()));
 
         let disc_map = build_discriminator_map();
         let disc = disc_map
@@ -278,7 +292,6 @@ mod tests {
             .unwrap();
 
         let mut data = disc.to_vec();
-        // Append minimal valid args for instructions that decode them
         match kind {
             InstructionKind::ConfigTransactionCreate => {
                 data.extend_from_slice(&[0, 0, 0, 0]); // empty vec
@@ -305,15 +318,16 @@ mod tests {
     fn make_tx(kind: InstructionKind, accounts: &[&str], sig: &str) -> RawTransaction {
         let (instr, keys) = make_squads_instruction(kind, accounts);
         RawTransaction {
-            signature: sig.to_string(),
+            signature: None, // mimic real Helius raw payloads (no top-level signature)
             slot: 100,
             block_time: None,
+            index_within_block: None,
             transaction: TransactionEnvelope {
                 message: TransactionMessage {
                     account_keys: keys,
                     instructions: vec![instr],
                 },
-                signatures: vec![sig.to_string()],
+                signatures: vec![sig.to_string()], // signature lives here
             },
             meta: Some(TransactionMeta {
                 err: None,
@@ -394,9 +408,10 @@ mod tests {
             &["multisig1", "member1", "proposal1"],
         );
         let tx = RawTransaction {
-            signature: "sig_fail".to_string(),
+            signature: None,
             slot: 100,
             block_time: None,
+            index_within_block: None,
             transaction: TransactionEnvelope {
                 message: TransactionMessage {
                     account_keys: keys,

@@ -341,43 +341,99 @@ These are the valid values for `CONFIG_TYPES`. Each maps to a variant of the `Co
 
 ## Notification Format
 
-Notifications are sent as Slack [Block Kit](https://api.slack.com/block-kit) messages. Each notification includes:
+Notifications are sent as Slack [Block Kit](https://api.slack.com/block-kit) messages. All public key addresses and transaction signatures are shown in full (not truncated) for easy copy-paste and auditability. Each notification includes:
 
 - **Operation name** with an emoji indicator
-- **Multisig address** (truncated for readability)
+- **Multisig address** — full public key
 - **Member address** and their role (Creator, Approver, Rejector, Executor, Config Authority, etc.)
-- **Transaction address** and **Proposal address** when available (for correlating creates, votes, and executions)
-- **Transaction signature** linked to [Solscan](https://solscan.io)
+- **Transaction address** and **Proposal address** when available, for correlating creates, votes, and executions
+- **Transaction signature** as a clickable link to [Solscan](https://solscan.io)
 - **Operation-specific details**: config actions, member permissions, threshold values, spending limit parameters, etc.
 
-Example notification for a proposal-based config transaction:
+### Proposal Approval
+
+```
+✅ Proposal Approved
+
+Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
+Approver: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
+
+Proposal: Prop1ABCDEFGHijk234567890abcdefghijklmnopqrstuv
+
+Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
+```
+
+### Config Transaction Created (Proposal-Based)
 
 ```
 ⚙️ Config Transaction Created
 
-Multisig:      7nYB...3kFd
-Creator:       9xKz...mR2p
-Transaction:   txAc...5kPd
+Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
+Creator: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
+
+Transaction: TxAddr1234567890abcdefghijklmnopqrstuvwxyz12
 
 Config Actions:
-  • Add member HjK4...2nRp (permissions: Vote, Execute)
+  • Add member HjK4NewMember567890abcdefghijklmnopqrstuv12 (permissions: Vote, Execute)
   • Change threshold to 3
 
-Tx: 4fGh...view on Solscan
+Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 ```
 
-Example notification for a direct (controlled multisig) config change:
+### Vault Transaction Executed
+
+```
+🚀 Vault Transaction Executed
+
+Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
+Executor: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
+
+Transaction: TxAddr1234567890abcdefghijklmnopqrstuvwxyz12
+Proposal: PropAddr567890abcdefghijklmnopqrstuvwxyz1234
+
+Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
+```
+
+### Direct Member Added (Controlled Multisig)
+
+Direct config changes bypass the proposal flow and are flagged with a warning indicator.
 
 ```
 ⚠️ Direct: Member Added
 
-Multisig:          7nYB...3kFd
-Config Authority:  auth...9xKz
+Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
+Config Authority: AuthKeyABCDEF1234567890abcdefghijklmnopqrstuv
 
-New Member: HjK4...2nRp
+New Member: HjK4NewMember567890abcdefghijklmnopqrstuv12
 Permissions: Initiate, Vote, Execute
 
-Tx: 5gHi...view on Solscan
+Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
+```
+
+### Direct Threshold Changed (Controlled Multisig)
+
+```
+⚠️ Direct: Threshold Changed
+
+Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
+Config Authority: AuthKeyABCDEF1234567890abcdefghijklmnopqrstuv
+
+New Threshold: 3
+
+Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
+```
+
+### Spending Limit Used
+
+```
+💸 Spending Limit Used
+
+Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
+Member: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
+
+Amount: 1000000 (decimals: 6)
+
+Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 ```
 
 ## Endpoints

@@ -8,7 +8,9 @@ resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+description = "Squads Multisig Program v4 transaction monitoring tool"
+license-file = "LICENSE"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
