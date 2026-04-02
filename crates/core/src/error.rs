@@ -15,20 +15,14 @@ pub enum MonitorError {
     #[error("slack send failed: status {status}")]
     SlackSend { status: u16 },
 
-    #[error("worker: {0}")]
-    Worker(String),
-}
+    #[error("serialization failed: {0}")]
+    Serialization(String),
 
-impl From<worker::Error> for MonitorError {
-    fn from(err: worker::Error) -> Self {
-        MonitorError::Worker(err.to_string())
-    }
-}
+    #[error("platform error: {0}")]
+    Platform(String),
 
-impl From<MonitorError> for worker::Error {
-    fn from(err: MonitorError) -> Self {
-        worker::Error::RustError(err.to_string())
-    }
+    #[error("config error: {0}")]
+    Config(String),
 }
 
 /// Truncates a base58 address to `first4...last4` for display.
@@ -46,9 +40,6 @@ mod tests {
     #[test]
     fn test_truncate_address() {
         assert_eq!(truncate_address("7nYBkp3k"), "7nYBkp3k");
-        assert_eq!(
-            truncate_address("7nYB1234567890abcdef3kFd"),
-            "7nYB...3kFd"
-        );
+        assert_eq!(truncate_address("7nYB1234567890abcdef3kFd"), "7nYB...3kFd");
     }
 }

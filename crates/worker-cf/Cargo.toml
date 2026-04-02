@@ -1,0 +1,14 @@
+[package]
+name = "multisig-monitor-cf"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+multisig-monitor-core = { path = "../core" }
+worker = { version = "0.5", features = ["http"] }
+serde_json = { workspace = true }
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.3", features = ["wasm_js"] }

@@ -4,21 +4,14 @@ pub mod types;
 pub use types::RawTransaction;
 
 use crate::error::MonitorError;
-use worker::Request;
 
-/// Validates the Authorization header against the expected token.
-pub fn validate_auth(req: &Request, expected_token: &str) -> Result<(), MonitorError> {
-    let auth_header = req
-        .headers()
-        .get("Authorization")
-        .ok()
-        .flatten()
-        .ok_or(MonitorError::Unauthorized)?;
-
-    if auth_header != expected_token {
+/// Validates an authorization header value against the expected token.
+/// Platform-specific code is responsible for extracting the header from the request.
+pub fn validate_auth(auth_header: Option<&str>, expected_token: &str) -> Result<(), MonitorError> {
+    let header = auth_header.ok_or(MonitorError::Unauthorized)?;
+    if header != expected_token {
         return Err(MonitorError::Unauthorized);
     }
-
     Ok(())
 }
 
