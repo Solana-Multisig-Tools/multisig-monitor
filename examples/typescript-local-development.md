@@ -112,21 +112,24 @@ curl -s -o /dev/null -w "%{http_code}" \
 
 ### Set Environment Variables
 
-Create a `.env.local` file in the `ts/` directory:
+Vercel Edge Functions run in an isolated V8 runtime where `process.env` is only populated from environment variables configured in the Vercel project — **not** from `.env.local` files. For local development, pass environment variables directly when starting the dev server:
 
 ```sh
-# ts/.env.local (not committed to git)
-MULTISIG_ADDRESSES=SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
-INSTRUCTION_TYPES=config_transaction_create,config_transaction_execute,multisig_add_member,multisig_remove_member,multisig_change_threshold,multisig_set_time_lock,multisig_set_config_authority,multisig_set_rent_collector,multisig_add_spending_limit,multisig_remove_spending_limit
-CONFIG_TYPES=
-HELIUS_AUTH_TOKEN=dev-token-123
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T024F6G8L/B07EXAMPLE/xyzExampleTokenHere
+cd ts
+
+MULTISIG_ADDRESSES="SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc" \
+INSTRUCTION_TYPES="config_transaction_create,config_transaction_execute,multisig_add_member,multisig_remove_member,multisig_change_threshold,multisig_set_time_lock,multisig_set_config_authority,multisig_set_rent_collector,multisig_add_spending_limit,multisig_remove_spending_limit" \
+CONFIG_TYPES="" \
+HELIUS_AUTH_TOKEN="dev-token-123" \
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T024F6G8L/B07EXAMPLE/xyzExampleTokenHere" \
+vercel dev
 ```
 
-### Start the Dev Server
+Alternatively, if you've already configured env vars in your Vercel project (via `vercel env add`), pull them into a local `.env` file that Vercel's dev server will load:
 
 ```sh
-npx vercel dev
+vercel env pull .env.local
+vercel dev
 ```
 
 The server starts at:
@@ -259,6 +262,6 @@ All variables are the same across local, Cloudflare Workers, and Vercel Edge:
 | Port | 8787 | 3000 |
 | Webhook path | `/webhook` | `/api/webhook` |
 | Health path | `/health` | `/api/health` |
-| Config source | `wrangler.toml` [vars] + `.dev.vars` | `.env.local` |
-| Runtime | Cloudflare Workers (V8 isolate) | Vercel Edge (Node.js-based) |
+| Config source | `wrangler.toml` [vars] + `.dev.vars` | Shell env vars or `vercel env pull` |
+| Runtime | Cloudflare Workers (V8 isolate) | Vercel Edge (V8 isolate) |
 | TS handling | Bundled by Wrangler directly | Bundled by Vercel dev server |

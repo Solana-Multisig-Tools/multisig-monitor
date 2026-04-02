@@ -1,7 +1,4 @@
 {
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "edge"
-    }
-  }
+  "buildCommand": "",
+  "outputDirectory": "."
 }

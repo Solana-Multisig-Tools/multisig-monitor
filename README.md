@@ -176,7 +176,7 @@ CONFIG_TYPES="add_member,remove_member"
 | TS Vercel | `vercel env add` or Vercel dashboard |
 | Local (Rust CF) | `rs/wrangler.toml` `[vars]` or `rs/.dev.vars` |
 | Local (TS CF) | `ts/wrangler.toml` `[vars]` or `ts/.dev.vars` |
-| Local (TS Vercel) | `ts/.env.local` |
+| Local (TS Vercel) | Shell env vars or `vercel env pull` |
 | Local (Rust Lambda) | Shell environment variables |
 
 ### Filter Behavior
