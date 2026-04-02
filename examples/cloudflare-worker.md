@@ -1,6 +1,6 @@
-# Deploying Multisig Monitor on Cloudflare Workers
+# Deploying the Rust Monitor on Cloudflare Workers
 
-This guide walks through deploying the multisig monitor as a Cloudflare Worker, configured to monitor **all config transactions** for a single Squads v4 multisig.
+This guide walks through deploying the Rust multisig monitor as a Cloudflare Worker, configured to monitor **all config transactions** for a single Squads v4 multisig.
 
 ## Example Values
 
@@ -41,7 +41,7 @@ wrangler login
 
 ## Step 2: Configure wrangler.toml
 
-Edit the `wrangler.toml` at the project root. Set the multisig address and filter to config transactions only:
+Edit `rs/wrangler.toml`. Set the multisig address and filter to config transactions only:
 
 ```toml
 name = "multisig-monitor"
@@ -82,9 +82,10 @@ When prompted, enter: `https://hooks.slack.com/services/T024F6G8L/B07EXAMPLE/xyz
 
 ## Step 4: Build and Deploy
 
-From the project root:
+From the `rs/` directory:
 
 ```sh
+cd rs
 wrangler deploy
 ```
 
@@ -195,7 +196,7 @@ This sends an empty transaction — the Worker will return `ok` but produce no S
 
 ## Updating Configuration
 
-To change the monitored addresses or filters, edit `wrangler.toml` and redeploy:
+To change the monitored addresses or filters, edit `rs/wrangler.toml` and redeploy:
 
 ```sh
 wrangler deploy

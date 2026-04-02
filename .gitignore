@@ -1,3 +1,32 @@
-target/
-.env
+# Secrets and local config
+**/.dev.vars
+**/.env
+**/.env.*
+**/.env.local
+
+# Claude
 **/.claude
+
+# Rust
+**/target/
+**/*.rs.bk
+
+# TypeScript / Node
+**/node_modules/
+**/dist/
+**/.tsbuildinfo
+
+# Cloudflare Workers
+**/.wrangler/
+**/build/worker/
+**/build/.tmp/
+**/build/index.js
+**/build/index_bg.wasm
+**/build/package.json
+
+# Vercel
+**/.vercel/
+
+# OS
+.DS_Store
+Thumbs.db

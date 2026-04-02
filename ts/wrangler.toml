@@ -1,0 +1,12 @@
+name = "multisig-monitor"
+main = "src/index.ts"
+compatibility_date = "2024-09-25"
+
+[vars]
+MULTISIG_ADDRESSES = ""
+INSTRUCTION_TYPES = ""
+CONFIG_TYPES = ""
+
+# Secrets (set via `wrangler secret put`):
+# HELIUS_AUTH_TOKEN
+# SLACK_WEBHOOK_URL

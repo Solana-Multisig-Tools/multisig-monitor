@@ -30,9 +30,10 @@ Replace these with your actual values.
 
 ## Step 1: Build the Lambda Binary
 
-From the project root, build for the Lambda ARM64 runtime (cheaper and faster than x86):
+From the `rs/` directory, build for the Lambda ARM64 runtime (cheaper and faster than x86):
 
 ```sh
+cd rs
 cargo lambda build -p multisig-monitor-lambda --release --arm64
 ```
 

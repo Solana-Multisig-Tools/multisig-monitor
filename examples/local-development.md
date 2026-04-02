@@ -1,6 +1,6 @@
-# Running Multisig Monitor Locally
+# Running the Rust Monitor Locally
 
-This guide covers running the monitor on your local machine for development and testing. Both deployment targets (Cloudflare Worker and AWS Lambda) have local development servers that accept the same webhook payloads.
+This guide covers running the Rust monitor on your local machine for development and testing. Both deployment targets (Cloudflare Worker and AWS Lambda) have local development servers that accept the same webhook payloads.
 
 ## Example Values
 
@@ -28,7 +28,7 @@ npm install -g wrangler
 
 ### 2. Configure wrangler.toml
 
-Edit `wrangler.toml` at the project root. For local development, you can put secrets directly in vars (these never leave your machine):
+Edit `rs/wrangler.toml`. For local development, you can put secrets directly in vars (these never leave your machine):
 
 ```toml
 name = "multisig-monitor"
@@ -47,10 +47,10 @@ HELIUS_AUTH_TOKEN = "dev-token-123"
 SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/T024F6G8L/B07EXAMPLE/xyzExampleTokenHere"
 ```
 
-Alternatively, create a `.dev.vars` file in the project root to keep secrets out of `wrangler.toml`:
+Alternatively, create a `.dev.vars` file in the `rs/` directory to keep secrets out of `wrangler.toml`:
 
 ```sh
-# .dev.vars (not committed to git)
+# rs/.dev.vars (not committed to git)
 HELIUS_AUTH_TOKEN=dev-token-123
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T024F6G8L/B07EXAMPLE/xyzExampleTokenHere
 ```
@@ -58,6 +58,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T024F6G8L/B07EXAMPLE/xyzExamp
 ### 3. Start the Dev Server
 
 ```sh
+cd rs
 wrangler dev
 ```
 
@@ -114,9 +115,10 @@ cargo install cargo-lambda
 
 ### 2. Start the Dev Server
 
-Pass configuration as environment variables:
+Pass configuration as environment variables (from the `rs/` directory):
 
 ```sh
+cd rs
 MULTISIG_ADDRESSES="SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc" \
 INSTRUCTION_TYPES="" \
 CONFIG_TYPES="" \
@@ -222,9 +224,11 @@ For a more practical test, point Helius at your local machine using a tunneling 
 
 ## Running Tests
 
-The core parsing logic is covered by unit tests that don't require any network access or configuration:
+The core parsing logic is covered by unit tests that don't require any network access or configuration. Run from the `rs/` directory:
 
 ```sh
+cd rs
+
 # All tests
 cargo test --workspace
 
@@ -241,6 +245,7 @@ cargo test -p multisig-monitor-core -- --nocapture
 ## Linting
 
 ```sh
+cd rs
 cargo clippy --workspace
 ```
 
@@ -249,6 +254,8 @@ cargo clippy --workspace
 Confirm both deployment targets compile without deploying:
 
 ```sh
+cd rs
+
 # Cloudflare Worker (WASM)
 cargo build -p multisig-monitor-cf --target wasm32-unknown-unknown --release
 

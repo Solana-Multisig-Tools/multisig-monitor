@@ -1,0 +1,107 @@
+import { describe, it, expect } from "vitest";
+import bs58 from "bs58";
+import { buildOperation } from "./decoder.js";
+import { getDiscriminatorMap } from "./discriminator.js";
+
+/** Helper: creates instruction data with the correct discriminator for a given kind. */
+async function makeInstructionData(
+  kind: string,
+  argsBytes: Uint8Array = new Uint8Array(0),
+): Promise<Uint8Array> {
+  const map = await getDiscriminatorMap();
+  let discHex: string | undefined;
+  for (const [hex, k] of map) {
+    if (k === kind) {
+      discHex = hex;
+      break;
+    }
+  }
+  if (!discHex) throw new Error(`unknown kind: ${kind}`);
+
+  const disc = new Uint8Array(8);
+  for (let i = 0; i < 8; i++) {
+    disc[i] = parseInt(discHex.slice(i * 2, i * 2 + 2), 16);
+  }
+
+  const data = new Uint8Array(8 + argsBytes.length);
+  data.set(disc, 0);
+  data.set(argsBytes, 8);
+  return data;
+}
+
+/** Helper: builds a Borsh-encoded u16 (little-endian). */
+function u16LE(n: number): Uint8Array {
+  const buf = new Uint8Array(2);
+  new DataView(buf.buffer).setUint16(0, n, true);
+  return buf;
+}
+
+/** Helper: builds Borsh Vec<ConfigAction> with a single ChangeThreshold(3). */
+function changeThresholdArgs(): Uint8Array {
+  // Vec length (4 bytes LE) = 1
+  // ConfigAction variant (1 byte) = 2 (ChangeThreshold)
+  // new_threshold (2 bytes LE) = 3
+  // memo: Option<String> = None (1 byte = 0)
+  return new Uint8Array([1, 0, 0, 0, 2, 3, 0, 0]);
+}
+
+describe("decoder", () => {
+  it("decodes config_transaction_create with ChangeThreshold", async () => {
+    const data = await makeInstructionData(
+      "config_transaction_create",
+      changeThresholdArgs(),
+    );
+    const op = buildOperation("config_transaction_create", data);
+    expect(op).not.toBeNull();
+    expect(op!.kind).toBe("config_transaction_create");
+    if (op!.kind === "config_transaction_create") {
+      expect(op!.actions).toHaveLength(1);
+      expect(op!.actions[0]!.kind).toBe("change_threshold");
+      if (op!.actions[0]!.kind === "change_threshold") {
+        expect(op!.actions[0]!.newThreshold).toBe(3);
+      }
+    }
+  });
+
+  it("decodes multisig_change_threshold", async () => {
+    // Args: new_threshold (u16) = 5, memo = None
+    const args = new Uint8Array([5, 0, 0]);
+    const data = await makeInstructionData("multisig_change_threshold", args);
+    const op = buildOperation("multisig_change_threshold", data);
+    expect(op).not.toBeNull();
+    if (op!.kind === "multisig_change_threshold") {
+      expect(op!.newThreshold).toBe(5);
+    }
+  });
+
+  it("decodes multisig_add_member", async () => {
+    // Args: Member { key: [42; 32], permissions: 0x03 }, memo = None
+    const args = new Uint8Array(34);
+    args.fill(42, 0, 32); // pubkey
+    args[32] = 0x03; // permissions
+    args[33] = 0; // memo = None
+    const data = await makeInstructionData("multisig_add_member", args);
+    const op = buildOperation("multisig_add_member", data);
+    expect(op).not.toBeNull();
+    if (op!.kind === "multisig_add_member") {
+      expect(op!.newMember.key).toBe(bs58.encode(new Uint8Array(32).fill(42)));
+      expect(op!.newMember.permissions.mask).toBe(0x03);
+    }
+  });
+
+  it("returns fallback on decode failure", async () => {
+    // Provide too-short args for an instruction that decodes them
+    const data = await makeInstructionData("multisig_change_threshold");
+    const op = buildOperation("multisig_change_threshold", data);
+    expect(op).not.toBeNull();
+    if (op!.kind === "multisig_change_threshold") {
+      expect(op!.newThreshold).toBe(0); // fallback default
+    }
+  });
+
+  it("decodes simple instructions without args", async () => {
+    const data = await makeInstructionData("proposal_approve");
+    const op = buildOperation("proposal_approve", data);
+    expect(op).toEqual({ kind: "proposal_approve" });
+  });
+});

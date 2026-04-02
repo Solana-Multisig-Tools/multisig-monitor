@@ -12,182 +12,116 @@ Helius (raw webhook) ──POST──> Worker ──POST──> Slack Incoming W
 
 A stateless HTTP handler receives raw transaction data from Helius, parses Squads v4 instructions by matching Anchor discriminators, resolves the acting member from the transaction's account keys, and posts a formatted notification to Slack.
 
-Two deployment targets share the same core parsing and notification logic:
+The monitor is implemented in two languages with equivalent functionality. Choose whichever fits your toolchain:
 
-| Crate | Target | Runtime |
+| Implementation | Directory | Deployment Targets |
 |---|---|---|
-| `multisig-monitor-cf` | Cloudflare Workers | WASM (`wasm32-unknown-unknown`) |
-| `multisig-monitor-lambda` | AWS Lambda | Native Linux (`x86_64` or `aarch64`) |
+| **Rust** | `rs/` | Cloudflare Workers (WASM), AWS Lambda (native binary) |
+| **TypeScript** | `ts/` | Cloudflare Workers, Vercel Edge Functions |
+
+Both implementations produce identical Slack notifications, support the same configuration variables, and parse all 32 Squads v4 instructions.
 
 ## Project Structure
 
 ```
 multisig-monitor/
-├── Cargo.toml                          # Workspace root
-├── wrangler.toml                       # Cloudflare Workers deployment config
-├── crates/
-│   ├── core/                           # Shared library (multisig-monitor-core)
-│   │   └── src/
-│   │       ├── error.rs                # Error types
-│   │       ├── filter.rs               # Notification filtering by instruction/config type
-│   │       ├── squads/                 # Squads v4 instruction parsing
-│   │       │   ├── discriminator.rs    # Anchor discriminator computation
-│   │       │   ├── accounts.rs         # Instruction account index mapping
-│   │       │   ├── config_action.rs    # Borsh deserialization of ConfigAction args
-│   │       │   └── types.rs            # SquadsOperation, DetectedOperation, ConfigChange
-│   │       ├── webhook/                # Helius webhook payload handling
-│   │       │   ├── types.rs            # Raw transaction serde types
-│   │       │   └── mod.rs              # Auth validation, payload parsing
-│   │       └── slack/                  # Slack notification building
-│   │           ├── types.rs            # Block Kit payload types
-│   │           └── mod.rs              # Payload construction and serialization
-│   ├── worker-cf/                      # Cloudflare Worker binary
-│   │   └── src/
-│   │       ├── lib.rs                  # Worker entry point and HTTP handler
-│   │       └── config.rs              # Config from wrangler vars/secrets
-│   └── worker-lambda/                  # AWS Lambda binary
-│       └── src/
-│           ├── main.rs                 # Lambda handler with reqwest for Slack
-│           └── config.rs              # Config from environment variables
+├── README.md
+├── examples/                               # Deployment and setup guides
+│   ├── cloudflare-worker.md                # Rust → Cloudflare Workers
+│   ├── aws-lambda.md                       # Rust → AWS Lambda
+│   ├── local-development.md                # Rust local dev
+│   ├── typescript-cloudflare-worker.md     # TypeScript → Cloudflare Workers
+│   ├── typescript-vercel.md                # TypeScript → Vercel Edge Functions
+│   └── typescript-local-development.md     # TypeScript local dev
+├── rs/                                     # Rust implementation
+│   ├── Cargo.toml                          # Workspace root
+│   ├── wrangler.toml                       # CF Workers deployment config
+│   └── crates/
+│       ├── core/                           # Shared library (multisig-monitor-core)
+│       │   └── src/
+│       │       ├── error.rs                # Error types
+│       │       ├── filter.rs               # Notification filtering
+│       │       ├── squads/                 # Squads v4 instruction parsing
+│       │       │   ├── discriminator.rs    # Anchor discriminator computation
+│       │       │   ├── accounts.rs         # Instruction account index mapping
+│       │       │   ├── config_action.rs    # Borsh deserialization of instruction args
+│       │       │   └── types.rs            # SquadsOperation, DetectedOperation, ConfigChange
+│       │       ├── webhook/                # Helius webhook payload handling
+│       │       └── slack/                  # Slack notification building
+│       ├── worker-cf/                      # Cloudflare Worker binary (WASM)
+│       └── worker-lambda/                  # AWS Lambda binary (native)
+└── ts/                                     # TypeScript implementation
+    ├── package.json
+    ├── tsconfig.json
+    ├── wrangler.toml                       # CF Workers deployment config
+    ├── vercel.json                         # Vercel Edge Functions config
+    ├── src/
+    │   ├── index.ts                        # Shared fetch handler
+    │   ├── config.ts                       # Env var parsing
+    │   ├── filter.ts                       # Notification filtering
+    │   ├── webhook.ts                      # Auth validation, payload types
+    │   ├── slack.ts                        # Slack Block Kit payload building
+    │   └── squads/                         # Squads v4 instruction parsing
+    │       ├── discriminator.ts            # SHA-256 via Web Crypto API
+    │       ├── accounts.ts                 # Instruction account index mapping
+    │       ├── decoder.ts                  # Minimal Borsh reader + instruction decoders
+    │       ├── types.ts                    # SquadsOperation, ConfigChange, display helpers
+    │       └── index.ts                    # extractOperations pipeline
+    └── api/                                # Vercel Edge Function entry points
+        ├── webhook.ts
+        └── health.ts
 ```
 
-## Prerequisites
+## Quick Start
 
-- **Rust** (stable, 1.75+)
-- **wasm32-unknown-unknown target** (for Cloudflare Workers):
-  ```sh
-  rustup target add wasm32-unknown-unknown
-  ```
-- **Wrangler CLI** (for Cloudflare Workers):
-  ```sh
-  npm install -g wrangler
-  ```
-- **cargo-lambda** (for AWS Lambda, optional):
-  ```sh
-  cargo install cargo-lambda
-  ```
-- A [Helius](https://helius.dev) account (free tier works for webhooks)
-- A [Slack incoming webhook URL](https://api.slack.com/messaging/webhooks)
-
-## Building
-
-### Run Tests
+### Rust (Cloudflare Workers)
 
 ```sh
+cd rs
+rustup target add wasm32-unknown-unknown
 cargo test --workspace
+npx wrangler dev   # starts on http://localhost:8787
 ```
 
-### Cloudflare Worker
+### Rust (AWS Lambda)
 
 ```sh
-cargo build -p multisig-monitor-cf --target wasm32-unknown-unknown --release
-```
-
-Or use Wrangler (handles the WASM build automatically):
-
-```sh
-npx wrangler dev    # local development server
-npx wrangler deploy # deploy to Cloudflare
-```
-
-### AWS Lambda
-
-For native compilation (same architecture as your machine):
-
-```sh
-cargo build -p multisig-monitor-lambda --release
-```
-
-For cross-compilation to Lambda's Linux runtime, use cargo-lambda:
-
-```sh
+cd rs
+cargo install cargo-lambda
+cargo test --workspace
 cargo lambda build -p multisig-monitor-lambda --release --arm64
 ```
 
-The binary is named `bootstrap` as required by the Lambda custom runtime.
-
-## Deploying
-
-### Cloudflare Workers
-
-1. Set your secrets:
-
-   ```sh
-   npx wrangler secret put HELIUS_AUTH_TOKEN
-   npx wrangler secret put SLACK_WEBHOOK_URL
-   ```
-
-2. Edit `wrangler.toml` to configure your multisig addresses and optional filters (see [Configuration](#configuration) below).
-
-3. Deploy:
-
-   ```sh
-   npx wrangler deploy
-   ```
-
-4. Note the deployed URL (e.g., `https://multisig-monitor.<your-subdomain>.workers.dev`).
-
-### AWS Lambda
-
-1. Build for Lambda:
-
-   ```sh
-   cargo lambda build -p multisig-monitor-lambda --release --arm64
-   ```
-
-2. Deploy (creates/updates the Lambda function):
-
-   ```sh
-   cargo lambda deploy multisig-monitor-lambda \
-     --env-var MULTISIG_ADDRESSES="Addr1,Addr2" \
-     --env-var HELIUS_AUTH_TOKEN="your-token" \
-     --env-var SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..." \
-     --env-var INSTRUCTION_TYPES="" \
-     --env-var CONFIG_TYPES=""
-   ```
-
-   Or configure environment variables in the AWS Console / your IaC tool.
-
-3. Create a **Function URL** (or API Gateway) to expose the Lambda over HTTPS.
-
-### Helius Webhook Setup
-
-After deploying either target, configure a Helius raw webhook to push transactions to your endpoint.
-
-**Via the Helius dashboard:**
-
-1. Go to [dashboard.helius.dev/webhooks](https://dashboard.helius.dev/webhooks).
-2. Click **New Webhook**.
-3. Set **Webhook Type** to **Raw**.
-4. Set **Webhook URL** to `https://<your-worker-or-lambda-url>/webhook`.
-5. Add your multisig addresses to the **Account Addresses** list.
-6. Set **Auth Header** to the same value you configured for `HELIUS_AUTH_TOKEN`.
-7. Save.
-
-**Via the Helius API:**
+### TypeScript (Cloudflare Workers)
 
 ```sh
-curl -X POST "https://api.helius.xyz/v0/webhooks?api-key=<YOUR_API_KEY>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "webhookURL": "https://<your-endpoint>/webhook",
-    "transactionTypes": ["ANY"],
-    "accountAddresses": ["<multisig-address-1>", "<multisig-address-2>"],
-    "webhookType": "raw",
-    "authHeader": "<your-HELIUS_AUTH_TOKEN-value>"
-  }'
+cd ts
+npm install
+npm test
+npx wrangler dev   # starts on http://localhost:8787
 ```
+
+### TypeScript (Vercel Edge)
+
+```sh
+cd ts
+npm install
+npm test
+npx vercel dev     # starts on http://localhost:3000
+```
+
+See the [examples/](examples/) directory for full deployment guides.
 
 ## Configuration
 
-All configuration is provided through environment variables. For Cloudflare Workers, non-secret values go in `wrangler.toml` under `[vars]` and secrets are set via `wrangler secret put`. For AWS Lambda, all values are standard environment variables.
+All configuration is provided through environment variables. The same variable names apply to every implementation and deployment target.
 
 ### Required
 
 | Variable | Description |
 |---|---|
 | `MULTISIG_ADDRESSES` | Comma-separated list of Squads v4 multisig addresses to monitor. |
-| `HELIUS_AUTH_TOKEN` | Shared secret that Helius sends in the `Authorization` header of each webhook POST. Used to verify requests are from Helius. |
+| `HELIUS_AUTH_TOKEN` | Shared secret you create and configure in both your worker and the Helius webhook. Helius sends it in the `Authorization` header of each POST; the worker validates it. This is not a Helius API key. |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook URL where notifications are sent. |
 
 **Example:**
@@ -232,9 +166,22 @@ INSTRUCTION_TYPES=""
 CONFIG_TYPES="add_member,remove_member"
 ```
 
+### Platform-Specific Configuration
+
+| Platform | Config method |
+|---|---|
+| Rust CF Worker | `rs/wrangler.toml` `[vars]` + `wrangler secret put` |
+| Rust Lambda | Standard environment variables or `cargo lambda deploy --env-var` |
+| TS CF Worker | `ts/wrangler.toml` `[vars]` + `wrangler secret put` |
+| TS Vercel | `vercel env add` or Vercel dashboard |
+| Local (Rust CF) | `rs/wrangler.toml` `[vars]` or `rs/.dev.vars` |
+| Local (TS CF) | `ts/wrangler.toml` `[vars]` or `ts/.dev.vars` |
+| Local (TS Vercel) | `ts/.env.local` |
+| Local (Rust Lambda) | Shell environment variables |
+
 ### Filter Behavior
 
-- When `INSTRUCTION_TYPES` is **empty**: all 9 instruction types produce notifications.
+- When `INSTRUCTION_TYPES` is **empty**: all 32 instruction types produce notifications.
 - When `INSTRUCTION_TYPES` is **set**: only listed types produce notifications. Any instruction not in the list is silently dropped.
 - When `CONFIG_TYPES` is **empty**: all 7 config action types are included in `config_transaction_create` notifications.
 - When `CONFIG_TYPES` is **set**: only listed config action types are included. If a `config_transaction_create` instruction contains no matching actions after filtering, the notification is suppressed entirely.
@@ -353,7 +300,7 @@ Notifications are sent as Slack [Block Kit](https://api.slack.com/block-kit) mes
 ### Proposal Approval
 
 ```
-✅ Proposal Approved
+Proposal Approved
 
 Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
 Approver: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
@@ -366,7 +313,7 @@ Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 ### Config Transaction Created (Proposal-Based)
 
 ```
-⚙️ Config Transaction Created
+Config Transaction Created
 
 Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
 Creator: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
@@ -374,8 +321,8 @@ Creator: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
 Transaction: TxAddr1234567890abcdefghijklmnopqrstuvwxyz12
 
 Config Actions:
-  • Add member HjK4NewMember567890abcdefghijklmnopqrstuv12 (permissions: Vote, Execute)
-  • Change threshold to 3
+  - Add member HjK4NewMember567890abcdefghijklmnopqrstuv12 (permissions: Vote, Execute)
+  - Change threshold to 3
 
 Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 ```
@@ -383,7 +330,7 @@ Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 ### Vault Transaction Executed
 
 ```
-🚀 Vault Transaction Executed
+Vault Transaction Executed
 
 Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
 Executor: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
@@ -399,7 +346,7 @@ Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 Direct config changes bypass the proposal flow and are flagged with a warning indicator.
 
 ```
-⚠️ Direct: Member Added
+Direct: Member Added
 
 Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
 Config Authority: AuthKeyABCDEF1234567890abcdefghijklmnopqrstuv
@@ -413,7 +360,7 @@ Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 ### Direct Threshold Changed (Controlled Multisig)
 
 ```
-⚠️ Direct: Threshold Changed
+Direct: Threshold Changed
 
 Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
 Config Authority: AuthKeyABCDEF1234567890abcdefghijklmnopqrstuv
@@ -426,7 +373,7 @@ Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 ### Spending Limit Used
 
 ```
-💸 Spending Limit Used
+Spending Limit Used
 
 Multisig: SMPLDaGKqbPfi8NhZMNGH2fRYU3WbNRZVj3xnTjEjXc
 Member: 9xKzmR2pLn4sHj7wBcDfAe8qYt6vXkZ3nPo1uWr5mQjS
@@ -438,12 +385,12 @@ Tx: 5nNtjezQMYBHvgSQmoRmJPiXGsPAWmJPoGSa64xanqrauogiVz (link to Solscan)
 
 ## Endpoints
 
-Both deployment targets expose the same HTTP interface:
-
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/webhook` | Receives Helius raw webhook payloads. Validates the `Authorization` header, parses transactions, and sends Slack notifications. Returns `200` on success. |
 | `GET` | `/health` | Returns `200 ok`. Use for uptime monitoring. |
+
+Note: Vercel Edge Functions use the `/api/` prefix (`/api/webhook`, `/api/health`).
 
 ## Squads v4 Program
 
@@ -455,29 +402,29 @@ This monitor targets the Squads Multisig Program v4:
 
 ### Why the Squads types are duplicated
 
-The `multisig-monitor-core` crate contains its own Borsh-compatible definitions for Squads v4 types (`ConfigAction`, `Member`, `Permissions`, instruction arg structs, etc.) rather than importing them from the official [`squads-multisig`](https://crates.io/crates/squads-multisig) SDK crate.
+Both the Rust and TypeScript implementations define their own Squads v4 type definitions (instruction args, `ConfigAction` enum, `Member` struct, etc.) rather than importing them from the official SDKs (`squads-multisig` Rust crate or `@sqds/multisig` npm package).
 
-This is intentional. The `squads-multisig` crate depends on `squads-multisig-program`, which transitively pulls in `anchor-lang`, `solana-program`, and `solana-rpc-client`. These crates assume access to the Solana runtime (BPF syscalls, OS-level networking, full `std`) and **do not compile for `wasm32-unknown-unknown`** — the target required by Cloudflare Workers and other constrained WASM runtimes. There are no feature flags in the SDK to opt out of these dependencies.
+This is intentional. Both official SDKs transitively depend on heavy runtime libraries (`solana-program`/`anchor-lang` in Rust, `@solana/web3.js` v1.x in TypeScript) that do not compile or run in edge runtimes like Cloudflare Workers. The Rust crate requires the Solana BPF runtime and won't compile for `wasm32-unknown-unknown`. The npm package pulls in `rpc-websockets` which uses dynamic code evaluation forbidden in edge runtimes. Neither SDK offers feature flags to opt out of these dependencies.
 
-The duplicated types in `crates/core/src/squads/config_action.rs` are ~100 lines of struct and enum definitions with `#[derive(BorshDeserialize)]`, depending only on the `borsh` and `bs58` crates (both pure Rust, WASM-safe). They mirror the on-chain layout exactly as defined in the [Squads v4 IDL](https://github.com/Squads-Protocol/v4/blob/main/sdk/multisig/idl/squads_multisig_program.json), and are verified by unit tests that round-trip through Borsh serialization. If the Squads program updates its type layouts in a future version, these definitions will need to be updated to match.
+The duplicated types in `rs/crates/core/src/squads/config_action.rs` (~100 lines of Borsh-derived structs) and `ts/src/squads/decoder.ts` (~90 lines with a minimal Borsh reader) mirror the on-chain layout exactly as defined in the [Squads v4 IDL](https://github.com/Squads-Protocol/v4/blob/main/sdk/multisig/idl/squads_multisig_program.json). Both are verified by unit tests. If the Squads program updates its type layouts in a future version, these definitions will need to be updated to match.
 
 ## Development
 
+### Rust
+
 ```sh
-# Run all tests
+cd rs
 cargo test --workspace
-
-# Lint
 cargo clippy --workspace
+```
 
-# Local CF Worker development server
-npx wrangler dev
+### TypeScript
 
-# Test the webhook endpoint locally
-curl -X POST http://localhost:8787/webhook \
-  -H "Authorization: your-token" \
-  -H "Content-Type: application/json" \
-  -d '[{"signature":"test","slot":0,"transaction":{"message":{"accountKeys":[],"instructions":[]},"signatures":[]},"meta":null}]'
+```sh
+cd ts
+npm install
+npm test
+npm run lint
 ```
 
 ## License

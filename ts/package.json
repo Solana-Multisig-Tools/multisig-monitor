@@ -1,0 +1,24 @@
+{
+  "name": "multisig-monitor-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "dev:cf": "wrangler dev",
+    "deploy:cf": "wrangler deploy",
+    "dev:vercel": "vercel dev"
+  },
+  "dependencies": {
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "wrangler": "^4.0.0"
+  }
+}
