@@ -88,6 +88,32 @@ export function buildPayload(op: DetectedOperation, display: DisplayConfig): Sla
   return { blocks };
 }
 
+// ---------------------------------------------------------------------------
+// Batch payload building
+// ---------------------------------------------------------------------------
+
+const MAX_BLOCKS_PER_MESSAGE = 50;
+
+export function buildBatchPayload(
+  ops: readonly DetectedOperation[],
+  display: DisplayConfig,
+): SlackPayload[] {
+  if (ops.length === 0) return [];
+
+  const allBlocks: SlackBlock[] = [];
+  for (const op of ops) {
+    const { blocks } = buildPayload(op, display);
+    allBlocks.push(...blocks);
+  }
+
+  // Chunk into multiple messages if we exceed Slack's 50-block limit
+  const payloads: SlackPayload[] = [];
+  for (let i = 0; i < allBlocks.length; i += MAX_BLOCKS_PER_MESSAGE) {
+    payloads.push({ blocks: allBlocks.slice(i, i + MAX_BLOCKS_PER_MESSAGE) });
+  }
+  return payloads;
+}
+
 function appendOperationDetails(
   blocks: SlackBlock[],
   operation: SquadsOperation,
@@ -191,37 +217,40 @@ function appendOperationDetails(
 // Send notification
 // ---------------------------------------------------------------------------
 
-export async function sendNotification(
-  op: DetectedOperation,
+export async function sendBatchNotification(
+  ops: readonly DetectedOperation[],
   webhookUrl: string,
   display: DisplayConfig,
 ): Promise<void> {
-  const payload = buildPayload(op, display);
-  const body = JSON.stringify(payload);
+  const payloads = buildBatchPayload(ops, display);
 
-  const resp = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-  });
+  for (const payload of payloads) {
+    const body = JSON.stringify(payload);
 
-  if (resp.ok) return;
-
-  // Retry once on transient errors (rate limit or server error)
-  if (resp.status === 429 || resp.status >= 500) {
-    await sleep(1000);
-    const retry = await fetch(webhookUrl, {
+    const resp = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
     });
-    if (!retry.ok) {
-      throw new Error(`slack returned status ${retry.status} after retry`);
-    }
-    return;
-  }
 
-  throw new Error(`slack returned status ${resp.status}`);
+    if (resp.ok) continue;
+
+    // Retry once on transient errors (rate limit or server error)
+    if (resp.status === 429 || resp.status >= 500) {
+      await sleep(1000);
+      const retry = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      if (!retry.ok) {
+        throw new Error(`slack returned status ${retry.status} after retry`);
+      }
+      continue;
+    }
+
+    throw new Error(`slack returned status ${resp.status}`);
+  }
 }
 
 function sleep(ms: number): Promise<void> {

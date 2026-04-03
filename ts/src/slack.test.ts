@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildPayload } from "./slack.js";
+import { buildPayload, buildBatchPayload } from "./slack.js";
 import type { DisplayConfig } from "./config.js";
 import type { DetectedOperation } from "./squads/index.js";
 import type { SquadsOperation } from "./squads/types.js";
@@ -103,5 +103,19 @@ describe("slack payload", () => {
     const json = JSON.stringify(payload);
     expect(json).toContain("*Time:*");
     expect(json).toContain("UTC");
+  });
+
+  it("buildBatchPayload combines multiple operations", () => {
+    const op1 = makeOp({ kind: "proposal_approve" });
+    const op2 = makeOp({ kind: "proposal_reject" });
+    const payloads = buildBatchPayload([op1, op2], defaultDisplay);
+    expect(payloads).toHaveLength(1);
+    const json = JSON.stringify(payloads[0]);
+    expect(json).toContain("Proposal Approved");
+    expect(json).toContain("Proposal Rejected");
+  });
+
+  it("buildBatchPayload returns empty array for no operations", () => {
+    expect(buildBatchPayload([], defaultDisplay)).toHaveLength(0);
   });
 });
