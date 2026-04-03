@@ -14,6 +14,7 @@ export interface Config {
   readonly filter: NotificationFilter;
   readonly display: DisplayConfig;
   readonly logLevel: LogLevel;
+  readonly routes: ReadonlyMap<string, string>;
 }
 
 export interface Env {
@@ -26,10 +27,28 @@ export interface Env {
   readonly SHOW_TIMESTAMPS?: string;
   readonly TRUNCATE_ADDRESSES?: string;
   readonly LOG_LEVEL?: string;
+  readonly MULTISIG_ROUTES?: string;
 }
 
 function parseBool(value: string | undefined): boolean {
   return value?.toLowerCase() === "true";
+}
+
+function parseRoutes(raw: string): Map<string, string> {
+  const routes = new Map<string, string>();
+  if (!raw) return routes;
+  for (const entry of raw.split(",")) {
+    const sep = entry.indexOf(":");
+    if (sep === -1) continue;
+    const addr = entry.slice(0, sep).trim();
+    const url = entry.slice(sep + 1).trim();
+    if (addr && url) routes.set(addr, url);
+  }
+  return routes;
+}
+
+export function resolveWebhookUrl(config: Config, multisig: string): string {
+  return config.routes.get(multisig) ?? config.slackWebhookUrl;
 }
 
 export function loadConfig(env: Env): Config {
@@ -62,5 +81,7 @@ export function loadConfig(env: Env): Config {
 
   const logLevel = parseLogLevel(env.LOG_LEVEL);
 
-  return { multisigAddresses, heliusAuthToken, slackWebhookUrl, filter, display, logLevel };
+  const routes = parseRoutes(env.MULTISIG_ROUTES ?? "");
+
+  return { multisigAddresses, heliusAuthToken, slackWebhookUrl, filter, display, logLevel, routes };
 }

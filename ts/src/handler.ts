@@ -1,7 +1,7 @@
-import { loadConfig, type Env } from "./config.js";
+import { loadConfig, resolveWebhookUrl, type Env } from "./config.js";
 import { logError, logInfo, setLogLevel } from "./log.js";
-import { sendNotification } from "./slack.js";
-import { extractOperations } from "./squads/index.js";
+import { sendBatchNotification } from "./slack.js";
+import { extractOperations, type DetectedOperation } from "./squads/index.js";
 import { parsePayload, validateAuth } from "./webhook.js";
 
 export async function handleWebhook(
@@ -53,13 +53,37 @@ export async function handleWebhook(
     appConfig.filter,
   );
 
+  // Dedup by signature (Helius can include duplicates in one batch)
+  const seen = new Set<string>();
+  const deduped = operations.filter((op) => {
+    if (seen.has(op.signature)) return false;
+    seen.add(op.signature);
+    return true;
+  });
+
   logInfo("webhook processed", {
     transactions: transactions.length,
     operations: operations.length,
+    deduped: deduped.length,
   });
 
+  // Group operations by destination webhook URL
+  const groups = new Map<string, DetectedOperation[]>();
+  for (const op of deduped) {
+    const url = resolveWebhookUrl(appConfig, op.multisig);
+    const group = groups.get(url);
+    if (group) {
+      group.push(op);
+    } else {
+      groups.set(url, [op]);
+    }
+  }
+
+  // Send one batched message per destination
   const results = await Promise.allSettled(
-    operations.map((op) => sendNotification(op, appConfig.slackWebhookUrl, appConfig.display)),
+    [...groups.entries()].map(([url, ops]) =>
+      sendBatchNotification(ops, url, appConfig.display),
+    ),
   );
   for (const result of results) {
     if (result.status === "rejected") {
