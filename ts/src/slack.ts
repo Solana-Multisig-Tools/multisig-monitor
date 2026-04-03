@@ -1,3 +1,4 @@
+import type { DisplayConfig } from "./config.js";
 import type { DetectedOperation } from "./squads/index.js";
 import type { SquadsOperation, ConfigChange } from "./squads/types.js";
 import {
@@ -6,6 +7,7 @@ import {
   memberRole,
   configChangeDescription,
   permissionLabels,
+  truncateAddress,
 } from "./squads/types.js";
 
 // ---------------------------------------------------------------------------
@@ -33,37 +35,53 @@ function divider(): SlackBlock {
   return { type: "divider" };
 }
 
+function formatAddress(address: string, display: DisplayConfig): string {
+  if (display.truncateAddresses) {
+    return `${truncateAddress(address)} \`${address}\``;
+  }
+  return `\`${address}\``;
+}
+
+function formatTimestamp(blockTime: number): string {
+  const date = new Date(blockTime * 1000);
+  return date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+}
+
 // ---------------------------------------------------------------------------
 // Payload building
 // ---------------------------------------------------------------------------
 
-export function buildPayload(op: DetectedOperation): SlackPayload {
+export function buildPayload(op: DetectedOperation, display: DisplayConfig): SlackPayload {
   const blocks: SlackBlock[] = [
     header(`${emoji(op.operation)} ${displayName(op.operation)}`),
     section(
-      `*Multisig:* \`${op.multisig}\`\n*${memberRole(op.operation)}:* \`${op.member}\``,
+      `*Multisig:* ${formatAddress(op.multisig, display)}\n*${memberRole(op.operation)}:* ${formatAddress(op.member, display)}`,
     ),
   ];
 
   // Transaction and proposal addresses for correlation
   const refLines: string[] = [];
   if (op.transactionAddress) {
-    refLines.push(`*Transaction:* \`${op.transactionAddress}\``);
+    refLines.push(`*Transaction:* ${formatAddress(op.transactionAddress, display)}`);
   }
   if (op.proposalAddress) {
-    refLines.push(`*Proposal:* \`${op.proposalAddress}\``);
+    refLines.push(`*Proposal:* ${formatAddress(op.proposalAddress, display)}`);
   }
   if (refLines.length > 0) {
     blocks.push(section(refLines.join("\n")));
   }
 
   // Operation-specific details
-  appendOperationDetails(blocks, op.operation);
+  appendOperationDetails(blocks, op.operation, display);
 
   // Transaction signature with Solscan link
   blocks.push(
     section(`*Tx:* <https://solscan.io/tx/${op.signature}|${op.signature}>`),
   );
+
+  if (display.showTimestamps && op.blockTime) {
+    blocks.push(section(`*Time:* ${formatTimestamp(op.blockTime)}`));
+  }
 
   blocks.push(divider());
 
@@ -73,6 +91,7 @@ export function buildPayload(op: DetectedOperation): SlackPayload {
 function appendOperationDetails(
   blocks: SlackBlock[],
   operation: SquadsOperation,
+  display: DisplayConfig,
 ): void {
   switch (operation.kind) {
     case "config_transaction_create": {
@@ -88,9 +107,11 @@ function appendOperationDetails(
     case "multisig_create": {
       const memberLines = operation.members.map(
         (m) =>
-          `\u2022 \`${m.key}\` (${permissionLabels(m.permissions).join(", ")})`,
+          `\u2022 ${formatAddress(m.key, display)} (${permissionLabels(m.permissions).join(", ")})`,
       );
-      const authority = operation.configAuthority ?? "None (autonomous)";
+      const authority = operation.configAuthority
+        ? formatAddress(operation.configAuthority, display)
+        : "None (autonomous)";
       blocks.push(
         section(
           `*Threshold:* ${operation.threshold}\n*Config Authority:* ${authority}\n*Members:*\n${memberLines.join("\n")}`,
@@ -105,14 +126,14 @@ function appendOperationDetails(
       );
       blocks.push(
         section(
-          `*New Member:* \`${operation.newMember.key}\`\n*Permissions:* ${perms}`,
+          `*New Member:* ${formatAddress(operation.newMember.key, display)}\n*Permissions:* ${perms}`,
         ),
       );
       break;
     }
 
     case "multisig_remove_member":
-      blocks.push(section(`*Removed Member:* \`${operation.oldMember}\``));
+      blocks.push(section(`*Removed Member:* ${formatAddress(operation.oldMember, display)}`));
       break;
 
     case "multisig_change_threshold":
@@ -126,14 +147,14 @@ function appendOperationDetails(
     case "multisig_set_config_authority":
       blocks.push(
         section(
-          `*New Config Authority:* \`${operation.configAuthority}\``,
+          `*New Config Authority:* ${formatAddress(operation.configAuthority, display)}`,
         ),
       );
       break;
 
     case "multisig_set_rent_collector": {
       const value = operation.rentCollector
-        ? `\`${operation.rentCollector}\``
+        ? formatAddress(operation.rentCollector, display)
         : "None (removed)";
       blocks.push(section(`*Rent Collector:* ${value}`));
       break;
@@ -142,7 +163,7 @@ function appendOperationDetails(
     case "multisig_add_spending_limit":
       blocks.push(
         section(
-          `*Amount:* ${operation.amount}\n*Mint:* \`${operation.mint}\`\n*Vault:* ${operation.vaultIndex}`,
+          `*Amount:* ${operation.amount}\n*Mint:* ${formatAddress(operation.mint, display)}\n*Vault:* ${operation.vaultIndex}`,
         ),
       );
       break;
@@ -173,8 +194,9 @@ function appendOperationDetails(
 export async function sendNotification(
   op: DetectedOperation,
   webhookUrl: string,
+  display: DisplayConfig,
 ): Promise<void> {
-  const payload = buildPayload(op);
+  const payload = buildPayload(op, display);
 
   const resp = await fetch(webhookUrl, {
     method: "POST",

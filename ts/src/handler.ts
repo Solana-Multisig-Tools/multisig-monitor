@@ -19,11 +19,21 @@ export async function handleWebhook(
     return new Response("unauthorized", { status: 401 });
   }
 
+  const MAX_BODY_SIZE = 5 * 1024 * 1024; // 5 MB
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE) {
+    return new Response("payload too large", { status: 413 });
+  }
+
   let body: string;
   try {
     body = await request.text();
   } catch {
     return new Response("bad request", { status: 400 });
+  }
+
+  if (body.length > MAX_BODY_SIZE) {
+    return new Response("payload too large", { status: 413 });
   }
 
   let transactions;
@@ -39,11 +49,12 @@ export async function handleWebhook(
     appConfig.filter,
   );
 
-  for (const op of operations) {
-    try {
-      await sendNotification(op, appConfig.slackWebhookUrl);
-    } catch (e) {
-      console.error("slack notification failed:", e);
+  const results = await Promise.allSettled(
+    operations.map((op) => sendNotification(op, appConfig.slackWebhookUrl, appConfig.display)),
+  );
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("slack notification failed:", result.reason);
     }
   }
 
