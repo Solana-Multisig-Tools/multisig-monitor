@@ -49,17 +49,36 @@ async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<Respo
     let operations =
         squads::extract_operations(&transactions, &config.multisig_addresses, &config.filter);
 
+    // Dedup by signature
+    let mut seen = std::collections::HashSet::new();
+    let deduped: Vec<_> = operations
+        .into_iter()
+        .filter(|op| seen.insert(op.signature.clone()))
+        .collect();
+
     if let Some(json) = log_json(LogLevel::Info, config.log_level, "webhook processed", Some(serde_json::json!({
         "transactions": transactions.len(),
-        "operations": operations.len(),
+        "operations": deduped.len(),
     }))) {
         console_log!("{json}");
     }
 
-    let slack_futures = operations
-        .iter()
-        .map(|op| send_slack(op, &config.slack_webhook_url, &config.display));
-    let results = futures::future::join_all(slack_futures).await;
+    // Group by destination webhook URL
+    let mut groups: std::collections::HashMap<String, Vec<&squads::types::DetectedOperation>> =
+        std::collections::HashMap::new();
+    for op in &deduped {
+        let url = config.resolve_webhook_url(&op.multisig).to_string();
+        groups.entry(url).or_default().push(op);
+    }
+
+    // Send one batched message per destination
+    let send_futures = groups.into_iter().map(|(url, ops)| {
+        let display = &config.display;
+        async move {
+            send_batch_slack(&ops, &url, display).await
+        }
+    });
+    let results = futures::future::join_all(send_futures).await;
     for result in results {
         if let Err(e) = result
             && let Some(json) = log_json(LogLevel::Error, config.log_level, "slack notification failed", Some(serde_json::json!({ "error": e.to_string() })))
@@ -71,65 +90,54 @@ async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<Respo
     Response::ok("ok")
 }
 
-async fn send_slack(
-    op: &squads::types::DetectedOperation,
+async fn send_batch_slack(
+    ops: &[&squads::types::DetectedOperation],
     webhook_url: &str,
     display: &multisig_monitor_core::log::DisplayConfig,
 ) -> std::result::Result<(), MonitorError> {
-    let body = slack::serialize_payload(op, display)?;
+    let owned: Vec<_> = ops.iter().copied().cloned().collect();
+    let bodies = slack::serialize_batch_payloads(&owned, display)?;
 
-    // First attempt
-    let status = {
-        let headers = Headers::new();
-        headers
-            .set("Content-Type", "application/json")
-            .map_err(|e| MonitorError::Platform(e.to_string()))?;
-        let req = Request::new_with_init(
-            webhook_url,
-            RequestInit::new()
-                .with_method(Method::Post)
-                .with_headers(headers)
-                .with_body(Some(wasm_bindgen::JsValue::from_str(&body))),
-        )
-        .map_err(|e| MonitorError::Platform(e.to_string()))?;
-        Fetch::Request(req)
-            .send()
-            .await
-            .map_err(|e| MonitorError::Platform(e.to_string()))?
-            .status_code()
-    };
+    for body in bodies {
+        let status = {
+            let headers = Headers::new();
+            headers.set("Content-Type", "application/json")
+                .map_err(|e| MonitorError::Platform(e.to_string()))?;
+            let req = Request::new_with_init(
+                webhook_url,
+                RequestInit::new()
+                    .with_method(Method::Post)
+                    .with_headers(headers)
+                    .with_body(Some(wasm_bindgen::JsValue::from_str(&body))),
+            ).map_err(|e| MonitorError::Platform(e.to_string()))?;
+            Fetch::Request(req).send().await
+                .map_err(|e| MonitorError::Platform(e.to_string()))?.status_code()
+        };
 
-    if status == 200 {
-        return Ok(());
-    }
+        if status == 200 { continue; }
 
-    // Retry once on transient errors (rate limit or server error)
-    if status == 429 || status >= 500 {
-        let headers = Headers::new();
-        headers
-            .set("Content-Type", "application/json")
-            .map_err(|e| MonitorError::Platform(e.to_string()))?;
-        let req = Request::new_with_init(
-            webhook_url,
-            RequestInit::new()
-                .with_method(Method::Post)
-                .with_headers(headers)
-                .with_body(Some(wasm_bindgen::JsValue::from_str(&body))),
-        )
-        .map_err(|e| MonitorError::Platform(e.to_string()))?;
-        let retry_status = Fetch::Request(req)
-            .send()
-            .await
-            .map_err(|e| MonitorError::Platform(e.to_string()))?
-            .status_code();
-
-        if retry_status == 200 {
-            return Ok(());
+        if status == 429 || status >= 500 {
+            let headers = Headers::new();
+            headers.set("Content-Type", "application/json")
+                .map_err(|e| MonitorError::Platform(e.to_string()))?;
+            let req = Request::new_with_init(
+                webhook_url,
+                RequestInit::new()
+                    .with_method(Method::Post)
+                    .with_headers(headers)
+                    .with_body(Some(wasm_bindgen::JsValue::from_str(&body))),
+            ).map_err(|e| MonitorError::Platform(e.to_string()))?;
+            let retry_status = Fetch::Request(req).send().await
+                .map_err(|e| MonitorError::Platform(e.to_string()))?.status_code();
+            if retry_status != 200 {
+                return Err(MonitorError::SlackSend { status: retry_status });
+            }
+            continue;
         }
-        return Err(MonitorError::SlackSend { status: retry_status });
-    }
 
-    Err(MonitorError::SlackSend { status })
+        return Err(MonitorError::SlackSend { status });
+    }
+    Ok(())
 }
 
 fn to_worker_err(e: MonitorError) -> Error {

@@ -95,18 +95,37 @@ async fn handle_webhook(
     let operations =
         squads::extract_operations(&transactions, &config.multisig_addresses, &config.filter);
 
+    // Dedup by signature
+    let mut seen = std::collections::HashSet::new();
+    let deduped: Vec<_> = operations
+        .into_iter()
+        .filter(|op| seen.insert(op.signature.clone()))
+        .collect();
+
     if let Some(json) = log_json(LogLevel::Info, config.log_level, "webhook processed", Some(serde_json::json!({
         "transactions": transactions.len(),
-        "operations": operations.len(),
+        "operations": deduped.len(),
     }))) {
         println!("{json}");
     }
 
+    // Group by destination webhook URL
+    let mut groups: std::collections::HashMap<String, Vec<&squads::types::DetectedOperation>> =
+        std::collections::HashMap::new();
+    for op in &deduped {
+        let url = config.resolve_webhook_url(&op.multisig).to_string();
+        groups.entry(url).or_default().push(op);
+    }
+
     let client = reqwest::Client::new();
-    let slack_futures = operations
-        .iter()
-        .map(|op| send_slack(&client, op, &config.slack_webhook_url, &config.display));
-    let results = futures::future::join_all(slack_futures).await;
+    let send_futures = groups.into_iter().map(|(url, ops)| {
+        let client = &client;
+        let display = &config.display;
+        async move {
+            send_batch_slack(client, &ops, &url, display).await
+        }
+    });
+    let results = futures::future::join_all(send_futures).await;
     for result in results {
         if let Err(e) = result
             && let Some(json) = log_json(LogLevel::Error, config.log_level, "slack notification failed", Some(serde_json::json!({ "error": e.to_string() })))
@@ -120,41 +139,42 @@ async fn handle_webhook(
         .body(Body::Text("ok".to_string()))?)
 }
 
-async fn send_slack(
+async fn send_batch_slack(
     client: &reqwest::Client,
-    op: &squads::types::DetectedOperation,
+    ops: &[&squads::types::DetectedOperation],
     webhook_url: &str,
     display: &multisig_monitor_core::log::DisplayConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let body = slack::serialize_payload(op, display)?;
+    let owned: Vec<_> = ops.iter().copied().cloned().collect();
+    let bodies = slack::serialize_batch_payloads(&owned, display)?;
 
-    let resp = client
-        .post(webhook_url)
-        .header("Content-Type", "application/json")
-        .body(body.clone())
-        .send()
-        .await?;
-
-    let status = resp.status().as_u16();
-    if status == 200 {
-        return Ok(());
-    }
-
-    // Retry once on transient errors (rate limit or server error)
-    if status == 429 || status >= 500 {
-        sleep(Duration::from_secs(1)).await;
-        let retry = client
+    for body in bodies {
+        let resp = client
             .post(webhook_url)
             .header("Content-Type", "application/json")
-            .body(body)
+            .body(body.clone())
             .send()
             .await?;
-        let retry_status = retry.status().as_u16();
-        if retry_status != 200 {
-            return Err(format!("slack returned status {retry_status} after retry").into());
-        }
-        return Ok(());
-    }
 
-    Err(format!("slack returned status {status}").into())
+        let status = resp.status().as_u16();
+        if status == 200 { continue; }
+
+        if status == 429 || status >= 500 {
+            sleep(Duration::from_secs(1)).await;
+            let retry = client
+                .post(webhook_url)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .send()
+                .await?;
+            let retry_status = retry.status().as_u16();
+            if retry_status != 200 {
+                return Err(format!("slack returned status {retry_status} after retry").into());
+            }
+            continue;
+        }
+
+        return Err(format!("slack returned status {status}").into());
+    }
+    Ok(())
 }

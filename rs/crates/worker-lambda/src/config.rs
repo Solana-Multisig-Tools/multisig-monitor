@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use multisig_monitor_core::error::MonitorError;
 use multisig_monitor_core::filter::{NotificationFilter, parse_comma_list};
 use multisig_monitor_core::log::{DisplayConfig, LogLevel, parse_bool, parse_log_level};
@@ -10,6 +12,7 @@ pub struct Config {
     pub filter: NotificationFilter,
     pub display: DisplayConfig,
     pub log_level: LogLevel,
+    pub routes: HashMap<String, String>,
 }
 
 impl Config {
@@ -52,6 +55,10 @@ impl Config {
             .map(|v| parse_log_level(&v))
             .unwrap_or(LogLevel::Error);
 
+        let routes = std::env::var("MULTISIG_ROUTES")
+            .map(|v| parse_routes(&v))
+            .unwrap_or_default();
+
         Ok(Config {
             multisig_addresses,
             helius_auth_token,
@@ -59,6 +66,31 @@ impl Config {
             filter,
             display,
             log_level,
+            routes,
         })
     }
+
+    pub fn resolve_webhook_url(&self, multisig: &str) -> &str {
+        self.routes
+            .get(multisig)
+            .map(|s| s.as_str())
+            .unwrap_or(&self.slack_webhook_url)
+    }
+}
+
+fn parse_routes(raw: &str) -> HashMap<String, String> {
+    let mut routes = HashMap::new();
+    if raw.is_empty() {
+        return routes;
+    }
+    for entry in raw.split(',') {
+        if let Some(sep) = entry.find(':') {
+            let addr = entry[..sep].trim();
+            let url = entry[sep + 1..].trim();
+            if !addr.is_empty() && !url.is_empty() {
+                routes.insert(addr.to_string(), url.to_string());
+            }
+        }
+    }
+    routes
 }
