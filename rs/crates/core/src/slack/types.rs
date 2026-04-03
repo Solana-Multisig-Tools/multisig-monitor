@@ -11,8 +11,6 @@ pub struct SlackBlock {
     pub block_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<SlackText>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fields: Option<Vec<SlackText>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -30,7 +28,6 @@ impl SlackBlock {
                 text_type: "plain_text".to_string(),
                 text: text.to_string(),
             }),
-            fields: None,
         }
     }
 
@@ -41,15 +38,6 @@ impl SlackBlock {
                 text_type: "mrkdwn".to_string(),
                 text: text.to_string(),
             }),
-            fields: None,
-        }
-    }
-
-    pub fn section_fields(fields: Vec<SlackText>) -> Self {
-        Self {
-            block_type: "section".to_string(),
-            text: None,
-            fields: Some(fields),
         }
     }
 
@@ -57,16 +45,7 @@ impl SlackBlock {
         Self {
             block_type: "divider".to_string(),
             text: None,
-            fields: None,
         }
     }
 }
 
-impl SlackText {
-    pub fn mrkdwn(text: &str) -> Self {
-        Self {
-            text_type: "mrkdwn".to_string(),
-            text: text.to_string(),
-        }
-    }
-}
