@@ -113,6 +113,18 @@ npx vercel dev     # starts on http://localhost:3000
 
 See the [examples/](examples/) directory for full deployment guides.
 
+### Slack App Setup
+
+Import the included manifest to create a Slack app with incoming webhooks:
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Click **Create New App** → **From an app manifest**
+3. Paste the contents of [`examples/slack-manifest.yml`](examples/slack-manifest.yml)
+4. Go to **Incoming Webhooks** → **Add New Webhook to Workspace**
+5. Select your notification channel and copy the webhook URL
+
+For multi-multisig routing, repeat steps 4-5 for each channel and configure `MULTISIG_ROUTES`.
+
 ## Configuration
 
 All configuration is provided through environment variables. The same variable names apply to every implementation and deployment target.
@@ -143,6 +155,7 @@ SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX
 | `SHOW_TIMESTAMPS` | `false` | Include block timestamp in notifications (`true`/`false`). |
 | `TRUNCATE_ADDRESSES` | `false` | Shorten addresses in display text while keeping full addresses in code blocks (`true`/`false`). |
 | `LOG_LEVEL` | `error` | Structured log verbosity: `error`, `info`, or `debug`. |
+| `MULTISIG_ROUTES` | `""` | Comma-separated `address:webhook_url` pairs for per-multisig notification routing. Unrouted multisigs fall back to `SLACK_WEBHOOK_URL`. Example: `addr1:https://hooks.slack.com/a,addr2:https://hooks.slack.com/b` |
 
 **Example — monitor only proposal votes and config changes:**
 

@@ -10,6 +10,7 @@ SHOW_PERMISSIONS = ""
 SHOW_TIMESTAMPS = ""
 TRUNCATE_ADDRESSES = ""
 LOG_LEVEL = ""
+MULTISIG_ROUTES = ""
 
 # Secrets (set via `wrangler secret put`):
 # HELIUS_AUTH_TOKEN
