@@ -13,6 +13,7 @@ pub struct DetectedOperation {
     /// The on-chain proposal account address, if the instruction references one.
     pub proposal_address: Option<String>,
     pub operation: SquadsOperation,
+    pub block_time: Option<i64>,
 }
 
 // ---------------------------------------------------------------------------
@@ -310,4 +311,11 @@ impl Permissions {
         }
         labels
     }
+}
+
+pub fn truncate_address(address: &str) -> String {
+    if address.len() <= 12 {
+        return address.to_string();
+    }
+    format!("{}...{}", &address[..4], &address[address.len() - 4..])
 }

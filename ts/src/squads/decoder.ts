@@ -83,6 +83,7 @@ class BorshReader {
 
   string(): string {
     const len = this.u32();
+    if (len > this.remaining) throw new Error("borsh: string length exceeds remaining data");
     const bytes = this.bytes(len);
     return new TextDecoder().decode(bytes);
   }
@@ -95,6 +96,7 @@ class BorshReader {
 
   vec<T>(readItem: () => T): T[] {
     const len = this.u32();
+    if (len > this.remaining) throw new Error("borsh: vec length exceeds remaining data");
     const items: T[] = [];
     for (let i = 0; i < len; i++) {
       items.push(readItem());

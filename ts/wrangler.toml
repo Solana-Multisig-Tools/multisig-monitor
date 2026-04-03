@@ -6,6 +6,11 @@ compatibility_date = "2024-09-25"
 MULTISIG_ADDRESSES = ""
 INSTRUCTION_TYPES = ""
 CONFIG_TYPES = ""
+SHOW_PERMISSIONS = ""
+SHOW_TIMESTAMPS = ""
+TRUNCATE_ADDRESSES = ""
+LOG_LEVEL = ""
+MULTISIG_ROUTES = ""
 
 # Secrets (set via `wrangler secret put`):
 # HELIUS_AUTH_TOKEN

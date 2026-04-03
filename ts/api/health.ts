@@ -1,5 +1,7 @@
-export const config = { runtime: "edge" };
+import { handleHealth } from "../src/handler.js";
 
-export default async function (): Promise<Response> {
-  return new Response("ok");
+export const runtime = "edge";
+
+export default function handler(): Response {
+  return handleHealth(process.env as Record<string, string>);
 }

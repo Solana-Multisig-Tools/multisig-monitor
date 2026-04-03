@@ -1,0 +1,34 @@
+# Slack App Manifest for Multisig Monitor
+#
+# Import this manifest in Slack to create an app with an incoming webhook:
+# 1. Go to https://api.slack.com/apps
+# 2. Click "Create New App" → "From an app manifest"
+# 3. Select your workspace
+# 4. Paste this YAML
+# 5. Click "Create"
+# 6. Go to "Incoming Webhooks" → "Add New Webhook to Workspace"
+# 7. Select the channel for notifications
+# 8. Copy the webhook URL → set as SLACK_WEBHOOK_URL
+#
+# For multi-multisig routing, create one webhook per channel and configure
+# MULTISIG_ROUTES with the address:url mappings.
+
+display_information:
+  name: Multisig Monitor
+  description: Real-time Squads v4 multisig activity notifications
+  background_color: "#1a1a2e"
+
+features:
+  bot_user:
+    display_name: Multisig Monitor
+    always_online: true
+
+oauth_config:
+  scopes:
+    bot:
+      - incoming-webhook
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

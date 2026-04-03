@@ -27,9 +27,9 @@ Both implementations produce identical Slack notifications, support the same con
 multisig-monitor/
 ├── README.md
 ├── examples/                               # Deployment and setup guides
-│   ├── cloudflare-worker.md                # Rust → Cloudflare Workers
-│   ├── aws-lambda.md                       # Rust → AWS Lambda
-│   ├── local-development.md                # Rust local dev
+│   ├── rust-cloudflare-worker.md           # Rust → Cloudflare Workers
+│   ├── rust-aws-lambda.md                  # Rust → AWS Lambda
+│   ├── rust-local-development.md           # Rust local dev
 │   ├── typescript-cloudflare-worker.md     # TypeScript → Cloudflare Workers
 │   ├── typescript-vercel.md                # TypeScript → Vercel Edge Functions
 │   └── typescript-local-development.md     # TypeScript local dev
@@ -58,6 +58,7 @@ multisig-monitor/
     ├── src/
     │   ├── index.ts                        # Shared fetch handler
     │   ├── config.ts                       # Env var parsing
+    │   ├── handler.ts                      # Webhook request handler
     │   ├── filter.ts                       # Notification filtering
     │   ├── webhook.ts                      # Auth validation, payload types
     │   ├── slack.ts                        # Slack Block Kit payload building
@@ -112,6 +113,18 @@ npx vercel dev     # starts on http://localhost:3000
 
 See the [examples/](examples/) directory for full deployment guides.
 
+### Slack App Setup
+
+Import the included manifest to create a Slack app with incoming webhooks:
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Click **Create New App** → **From an app manifest**
+3. Paste the contents of [`examples/slack-manifest.yml`](examples/slack-manifest.yml)
+4. Go to **Incoming Webhooks** → **Add New Webhook to Workspace**
+5. Select your notification channel and copy the webhook URL
+
+For multi-multisig routing, repeat steps 4-5 for each channel and configure `MULTISIG_ROUTES`.
+
 ## Configuration
 
 All configuration is provided through environment variables. The same variable names apply to every implementation and deployment target.
@@ -138,6 +151,11 @@ SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX
 |---|---|---|
 | `INSTRUCTION_TYPES` | `""` (all) | Comma-separated list of Squads instruction types to notify on. If empty or omitted, all instruction types generate notifications. |
 | `CONFIG_TYPES` | `""` (all) | Comma-separated list of config action types to include in `config_transaction_create` notifications. If empty or omitted, all config action types are included. **Ignored if `config_transaction_create` is not in `INSTRUCTION_TYPES` (when `INSTRUCTION_TYPES` is explicitly set).** |
+| `SHOW_PERMISSIONS` | `false` | Show member permission badges on relevant operations (`true`/`false`). |
+| `SHOW_TIMESTAMPS` | `false` | Include block timestamp in notifications (`true`/`false`). |
+| `TRUNCATE_ADDRESSES` | `false` | Shorten addresses in display text while keeping full addresses in code blocks (`true`/`false`). |
+| `LOG_LEVEL` | `error` | Structured log verbosity: `error`, `info`, or `debug`. |
+| `MULTISIG_ROUTES` | `""` | Comma-separated `address:webhook_url` pairs for per-multisig notification routing. Unrouted multisigs fall back to `SLACK_WEBHOOK_URL`. Example: `addr1:https://hooks.slack.com/a,addr2:https://hooks.slack.com/b` |
 
 **Example — monitor only proposal votes and config changes:**
 

@@ -75,9 +75,6 @@ export const ANCHOR_NAMES: Record<InstructionKind, string> = {
 
 const ALL_KINDS = Object.keys(ANCHOR_NAMES) as InstructionKind[];
 
-/** Precomputed discriminator map: hex string of first 8 bytes → InstructionKind */
-let discriminatorMap: Map<string, InstructionKind> | null = null;
-
 /** Computes sha256("global:<name>") and returns the first 8 bytes as a hex string. */
 async function computeDiscriminator(name: string): Promise<string> {
   const data = new TextEncoder().encode(`global:${name}`);
@@ -91,19 +88,25 @@ function hexFromBytes(bytes: Uint8Array): string {
     .join("");
 }
 
-/** Builds (or returns cached) discriminator → InstructionKind map. */
-export async function getDiscriminatorMap(): Promise<
-  Map<string, InstructionKind>
-> {
-  if (discriminatorMap) return discriminatorMap;
+/** Promise singleton — eliminates the race when concurrent requests both see null. */
+let mapPromise: Promise<Map<string, InstructionKind>> | null = null;
 
-  const map = new Map<string, InstructionKind>();
-  for (const kind of ALL_KINDS) {
-    const disc = await computeDiscriminator(ANCHOR_NAMES[kind]);
-    map.set(disc, kind);
+/** Builds (or returns cached) discriminator → InstructionKind map. */
+export function getDiscriminatorMap(): Promise<Map<string, InstructionKind>> {
+  if (!mapPromise) {
+    mapPromise = buildMap();
   }
-  discriminatorMap = map;
-  return map;
+  return mapPromise;
+}
+
+async function buildMap(): Promise<Map<string, InstructionKind>> {
+  const entries = await Promise.all(
+    ALL_KINDS.map(async (kind) => {
+      const disc = await computeDiscriminator(ANCHOR_NAMES[kind]);
+      return [disc, kind] as const;
+    }),
+  );
+  return new Map(entries);
 }
 
 /** Matches the first 8 bytes of instruction data against known discriminators. */

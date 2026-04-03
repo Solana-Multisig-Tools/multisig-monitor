@@ -8,6 +8,7 @@ export interface DetectedOperation {
   readonly transactionAddress: string | null;
   readonly proposalAddress: string | null;
   readonly operation: SquadsOperation;
+  readonly blockTime: number | null;
 }
 
 // -- Permissions --
@@ -260,4 +261,9 @@ export function memberRole(op: SquadsOperation): string {
     case "batch_accounts_close":
       return "Closer";
   }
+}
+
+export function truncateAddress(address: string): string {
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }

@@ -50,7 +50,25 @@ export function validateAuth(
   authHeader: string | null | undefined,
   expectedToken: string,
 ): boolean {
-  return authHeader === expectedToken;
+  if (!authHeader) return false;
+  const encoder = new TextEncoder();
+  const a = encoder.encode(authHeader);
+  const b = encoder.encode(expectedToken);
+  return timingSafeEqual(a, b);
+}
+
+function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+
+  if (typeof crypto.subtle.timingSafeEqual === "function") {
+    return crypto.subtle.timingSafeEqual(a, b);
+  }
+
+  let diff = 0;
+  for (let i = 0; i < a.byteLength; i++) {
+    diff |= a[i]! ^ b[i]!;
+  }
+  return diff === 0;
 }
 
 // ---------------------------------------------------------------------------

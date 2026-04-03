@@ -6,6 +6,23 @@ import {
 } from "./discriminator.js";
 
 describe("discriminator", () => {
+  it("returns the same promise for concurrent callers", () => {
+    const first = getDiscriminatorMap();
+    const second = getDiscriminatorMap();
+
+    expect(second).toBe(first);
+  });
+
+  it("resolves concurrent callers to the same map instance", async () => {
+    const maps = await Promise.all(
+      Array.from({ length: 8 }, () => getDiscriminatorMap()),
+    );
+
+    for (const map of maps) {
+      expect(map).toBe(maps[0]);
+    }
+  });
+
   it("produces unique discriminators for all 32 instructions", async () => {
     const map = await getDiscriminatorMap();
     expect(map.size).toBe(Object.keys(ANCHOR_NAMES).length);
