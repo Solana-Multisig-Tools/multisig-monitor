@@ -69,3 +69,17 @@ export async function handleWebhook(
 
   return new Response("ok");
 }
+
+export function handleHealth(env: Env): Response {
+  try {
+    loadConfig(env);
+    return new Response(JSON.stringify({ status: "ok" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ status: "error", message: String(e) }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+}

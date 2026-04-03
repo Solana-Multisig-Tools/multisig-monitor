@@ -18,8 +18,6 @@ async fn main() -> Result<(), lambda_runtime::Error> {
 }
 
 async fn handler(req: Request) -> Result<Response<Body>, lambda_runtime::Error> {
-    let config = Config::from_env()?;
-
     let (parts, body) = req.into_parts();
 
     // Route based on path + method
@@ -27,11 +25,24 @@ async fn handler(req: Request) -> Result<Response<Body>, lambda_runtime::Error> 
     let method = parts.method.as_str();
 
     match (method, path) {
-        ("GET", "/health") => Ok(Response::builder()
-            .status(200)
-            .body(Body::Text("ok".to_string()))?),
+        ("GET", "/health") => match Config::from_env() {
+            Ok(_) => Ok(Response::builder()
+                .status(200)
+                .header("Content-Type", "application/json")
+                .body(Body::Text(r#"{"status":"ok"}"#.to_string()))?),
+            Err(e) => Ok(Response::builder()
+                .status(500)
+                .header("Content-Type", "application/json")
+                .body(Body::Text(
+                    serde_json::json!({ "status": "error", "message": e.to_string() })
+                        .to_string(),
+                ))?),
+        },
 
-        ("POST", "/webhook") => handle_webhook(&parts.headers, body, &config).await,
+        ("POST", "/webhook") => {
+            let config = Config::from_env()?;
+            handle_webhook(&parts.headers, body, &config).await
+        }
 
         _ => Ok(Response::builder()
             .status(404)

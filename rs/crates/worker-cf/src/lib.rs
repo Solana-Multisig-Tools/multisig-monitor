@@ -12,7 +12,16 @@ async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     Router::new()
         .post_async("/webhook", handle_webhook)
-        .get("/health", |_, _| Response::ok("ok"))
+        .get_async("/health", |_, ctx| async move {
+            match Config::from_env(&ctx.env) {
+                Ok(_) => Response::from_json(&serde_json::json!({ "status": "ok" })),
+                Err(e) => {
+                    let body =
+                        serde_json::json!({ "status": "error", "message": e.to_string() });
+                    Ok(Response::from_json(&body)?.with_status(500))
+                }
+            }
+        })
         .run(req, env)
         .await
 }

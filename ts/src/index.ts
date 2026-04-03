@@ -1,5 +1,5 @@
 import type { Env } from "./config.js";
-import { handleWebhook } from "./handler.js";
+import { handleHealth, handleWebhook } from "./handler.js";
 
 /**
  * Cloudflare Workers entry point.
@@ -10,7 +10,7 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/health") {
-      return new Response("ok");
+      return handleHealth(env);
     }
 
     if (request.method === "POST" && url.pathname === "/webhook") {
