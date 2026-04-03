@@ -185,6 +185,36 @@ pub fn serialize_payload(op: &DetectedOperation, display: &DisplayConfig) -> Res
     serde_json::to_string(&payload).map_err(|e| MonitorError::Serialization(e.to_string()))
 }
 
+const MAX_BLOCKS_PER_MESSAGE: usize = 50;
+
+/// Builds one or more Slack payloads from a batch of operations.
+/// Chunks into multiple messages if blocks exceed Slack's 50-block limit.
+pub fn build_batch_payload(ops: &[DetectedOperation], display: &DisplayConfig) -> Vec<SlackPayload> {
+    if ops.is_empty() {
+        return vec![];
+    }
+
+    let all_blocks: Vec<SlackBlock> = ops
+        .iter()
+        .flat_map(|op| build_payload(op, display).blocks)
+        .collect();
+
+    all_blocks
+        .chunks(MAX_BLOCKS_PER_MESSAGE)
+        .map(|chunk| SlackPayload {
+            blocks: chunk.to_vec(),
+        })
+        .collect()
+}
+
+/// Serializes a batch of operations into JSON payloads ready for HTTP POST.
+pub fn serialize_batch_payloads(ops: &[DetectedOperation], display: &DisplayConfig) -> Result<Vec<String>, MonitorError> {
+    build_batch_payload(ops, display)
+        .iter()
+        .map(|p| serde_json::to_string(p).map_err(|e| MonitorError::Serialization(e.to_string())))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,5 +337,22 @@ mod tests {
         let json = serde_json::to_string(&build_payload(&op, &display)).unwrap();
         assert!(json.contains("*Time:*"));
         assert!(json.contains("UTC"));
+    }
+
+    #[test]
+    fn batch_payload_combines_operations() {
+        let op1 = make_op(SquadsOperation::ProposalApprove);
+        let op2 = make_op(SquadsOperation::ProposalReject);
+        let payloads = build_batch_payload(&[op1, op2], &DisplayConfig::default());
+        assert_eq!(payloads.len(), 1);
+        let json = serde_json::to_string(&payloads[0]).unwrap();
+        assert!(json.contains("Proposal Approved"));
+        assert!(json.contains("Proposal Rejected"));
+    }
+
+    #[test]
+    fn batch_payload_empty_for_no_ops() {
+        let payloads = build_batch_payload(&[], &DisplayConfig::default());
+        assert!(payloads.is_empty());
     }
 }
