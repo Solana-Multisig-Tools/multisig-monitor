@@ -2,7 +2,7 @@ pub mod types;
 
 use crate::error::MonitorError;
 use crate::log::DisplayConfig;
-use crate::squads::types::{truncate_address, DetectedOperation, SquadsOperation};
+use crate::squads::types::{DetectedOperation, SquadsOperation, truncate_address};
 use types::{SlackBlock, SlackPayload};
 
 fn format_address(address: &str, display: &DisplayConfig) -> String {
@@ -53,10 +53,16 @@ pub fn build_payload(op: &DetectedOperation, display: &DisplayConfig) -> SlackPa
     // Transaction and proposal addresses for correlation
     let mut ref_lines = Vec::new();
     if let Some(ref tx_addr) = op.transaction_address {
-        ref_lines.push(format!("*Transaction:* {}", format_address(tx_addr, display)));
+        ref_lines.push(format!(
+            "*Transaction:* {}",
+            format_address(tx_addr, display)
+        ));
     }
     if let Some(ref prop_addr) = op.proposal_address {
-        ref_lines.push(format!("*Proposal:* {}", format_address(prop_addr, display)));
+        ref_lines.push(format!(
+            "*Proposal:* {}",
+            format_address(prop_addr, display)
+        ));
     }
     if !ref_lines.is_empty() {
         blocks.push(SlackBlock::section_markdown(&ref_lines.join("\n")));
@@ -74,7 +80,10 @@ pub fn build_payload(op: &DetectedOperation, display: &DisplayConfig) -> SlackPa
     if display.show_timestamps
         && let Some(bt) = op.block_time
     {
-        blocks.push(SlackBlock::section_markdown(&format!("*Time:* {}", format_timestamp(bt))));
+        blocks.push(SlackBlock::section_markdown(&format!(
+            "*Time:* {}",
+            format_timestamp(bt)
+        )));
     }
 
     blocks.push(SlackBlock::divider());
@@ -82,7 +91,11 @@ pub fn build_payload(op: &DetectedOperation, display: &DisplayConfig) -> SlackPa
     SlackPayload { blocks }
 }
 
-fn append_operation_details(blocks: &mut Vec<SlackBlock>, operation: &SquadsOperation, display: &DisplayConfig) {
+fn append_operation_details(
+    blocks: &mut Vec<SlackBlock>,
+    operation: &SquadsOperation,
+    display: &DisplayConfig,
+) {
     match operation {
         SquadsOperation::ConfigTransactionCreate { actions } if !actions.is_empty() => {
             let lines: Vec<String> = actions
@@ -122,7 +135,8 @@ fn append_operation_details(blocks: &mut Vec<SlackBlock>, operation: &SquadsOper
             let perms = new_member.permissions.to_labels().join(", ");
             blocks.push(SlackBlock::section_markdown(&format!(
                 "*New Member:* {}\n*Permissions:* {}",
-                format_address(&new_member.key, display), perms
+                format_address(&new_member.key, display),
+                perms
             )));
         }
         SquadsOperation::DirectRemoveMember { old_member } => {
@@ -180,7 +194,10 @@ fn append_operation_details(blocks: &mut Vec<SlackBlock>, operation: &SquadsOper
 }
 
 /// Serializes a Slack payload to JSON string, ready for HTTP POST.
-pub fn serialize_payload(op: &DetectedOperation, display: &DisplayConfig) -> Result<String, MonitorError> {
+pub fn serialize_payload(
+    op: &DetectedOperation,
+    display: &DisplayConfig,
+) -> Result<String, MonitorError> {
     let payload = build_payload(op, display);
     serde_json::to_string(&payload).map_err(|e| MonitorError::Serialization(e.to_string()))
 }
@@ -189,7 +206,10 @@ const MAX_BLOCKS_PER_MESSAGE: usize = 50;
 
 /// Builds one or more Slack payloads from a batch of operations.
 /// Chunks into multiple messages if blocks exceed Slack's 50-block limit.
-pub fn build_batch_payload(ops: &[DetectedOperation], display: &DisplayConfig) -> Vec<SlackPayload> {
+pub fn build_batch_payload(
+    ops: &[DetectedOperation],
+    display: &DisplayConfig,
+) -> Vec<SlackPayload> {
     if ops.is_empty() {
         return vec![];
     }
@@ -208,7 +228,10 @@ pub fn build_batch_payload(ops: &[DetectedOperation], display: &DisplayConfig) -
 }
 
 /// Serializes a batch of operations into JSON payloads ready for HTTP POST.
-pub fn serialize_batch_payloads(ops: &[DetectedOperation], display: &DisplayConfig) -> Result<Vec<String>, MonitorError> {
+pub fn serialize_batch_payloads(
+    ops: &[DetectedOperation],
+    display: &DisplayConfig,
+) -> Result<Vec<String>, MonitorError> {
     build_batch_payload(ops, display)
         .iter()
         .map(|p| serde_json::to_string(p).map_err(|e| MonitorError::Serialization(e.to_string())))
@@ -251,7 +274,8 @@ mod tests {
             proposal_address: Some("Prop1ABCDEFGHijk2345678901234567890abcdefgh".to_string()),
             ..make_op(SquadsOperation::ProposalApprove)
         };
-        let json = serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
+        let json =
+            serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
         assert!(json.contains("Proposal Approved"));
         assert!(json.contains("Approver"));
         assert!(json.contains("Prop1ABCDEFGHijk2345678901234567890abcdefgh"));
@@ -269,7 +293,8 @@ mod tests {
                 ConfigChange::ChangeThreshold { new_threshold: 3 },
             ],
         });
-        let json = serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
+        let json =
+            serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
         assert!(json.contains("Config Transaction Created"));
         assert!(json.contains("HjK4NewMember567890abcdefghijklmnopqrstuv12"));
         assert!(json.contains("Change threshold to 3"));
@@ -283,7 +308,8 @@ mod tests {
                 permissions: Permissions { mask: 0x07 },
             },
         });
-        let json = serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
+        let json =
+            serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
         assert!(json.contains("Direct: Member Added"));
         assert!(json.contains("Config Authority"));
         assert!(json.contains("NewKeyABCDEF1234567890abcdefghijklmnopqrstuv"));
@@ -297,7 +323,8 @@ mod tests {
             proposal_address: Some("PropAddr567890abcdefghijklmnopqrstuvwxyz1234".to_string()),
             ..make_op(SquadsOperation::VaultTransactionExecute)
         };
-        let json = serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
+        let json =
+            serde_json::to_string_pretty(&build_payload(&op, &DisplayConfig::default())).unwrap();
         assert!(json.contains("TxAddr1234567890abcdefghijklmnopqrstuvwxyz12"));
         assert!(json.contains("PropAddr567890abcdefghijklmnopqrstuvwxyz1234"));
     }

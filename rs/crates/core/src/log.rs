@@ -45,7 +45,12 @@ fn level_str(level: LogLevel) -> &'static str {
     }
 }
 
-pub fn log_json(level: LogLevel, current: LogLevel, msg: &str, fields: Option<serde_json::Value>) -> Option<String> {
+pub fn log_json(
+    level: LogLevel,
+    current: LogLevel,
+    msg: &str,
+    fields: Option<serde_json::Value>,
+) -> Option<String> {
     if !should_log(level, current) {
         return None;
     }
