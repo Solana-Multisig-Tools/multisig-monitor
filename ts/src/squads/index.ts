@@ -1,6 +1,7 @@
 import bs58 from "bs58";
 import type { NotificationFilter } from "../filter.js";
 import { allowsInstruction, applyFilter } from "../filter.js";
+import { logError } from "../log.js";
 import type { RawTransaction } from "../webhook.js";
 import { layoutFor, resolvePubkey } from "./accounts.js";
 import { buildOperation } from "./decoder.js";
@@ -25,46 +26,54 @@ export async function extractOperations(
   const results: DetectedOperation[] = [];
 
   for (const tx of transactions) {
-    if (tx.meta?.err) continue;
+    try {
+      if (tx.meta?.err) continue;
 
-    const blockTime = tx.blockTime ?? null;
+      const blockTime = tx.blockTime ?? null;
 
-    const signature =
-      tx.signature ?? tx.transaction.signatures[0] ?? undefined;
-    if (!signature) continue;
+      const signature =
+        tx.signature ?? tx.transaction.signatures[0] ?? undefined;
+      if (!signature) continue;
 
-    const accountKeys = tx.transaction.message.accountKeys.map((k) =>
-      typeof k === "string" ? k : k.pubkey,
-    );
-
-    for (const instr of tx.transaction.message.instructions) {
-      const op = processInstruction(
-        instr,
-        accountKeys,
-        signature,
-        monitoredMultisigs,
-        discMap,
-        filter,
-        blockTime,
+      const accountKeys = tx.transaction.message.accountKeys.map((k) =>
+        typeof k === "string" ? k : k.pubkey,
       );
-      if (op) results.push(op);
-    }
 
-    if (tx.meta?.innerInstructions) {
-      for (const set of tx.meta.innerInstructions) {
-        for (const instr of set.instructions) {
-          const op = processInstruction(
-            instr,
-            accountKeys,
-            signature,
-            monitoredMultisigs,
-            discMap,
-            filter,
-            blockTime,
-          );
-          if (op) results.push(op);
+      for (const instr of tx.transaction.message.instructions) {
+        const op = processInstruction(
+          instr,
+          accountKeys,
+          signature,
+          monitoredMultisigs,
+          discMap,
+          filter,
+          blockTime,
+        );
+        if (op) results.push(op);
+      }
+
+      if (tx.meta?.innerInstructions) {
+        for (const set of tx.meta.innerInstructions) {
+          for (const instr of set.instructions) {
+            const op = processInstruction(
+              instr,
+              accountKeys,
+              signature,
+              monitoredMultisigs,
+              discMap,
+              filter,
+              blockTime,
+            );
+            if (op) results.push(op);
+          }
         }
       }
+    } catch (e) {
+      logError("failed to process transaction", {
+        signature:
+          tx.signature ?? tx.transaction?.signatures?.[0] ?? "unknown",
+        error: String(e),
+      });
     }
   }
 
