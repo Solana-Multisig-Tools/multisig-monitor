@@ -2,7 +2,6 @@ mod config;
 
 use std::collections::{HashMap, HashSet};
 
-use config::Config;
 use futures::future;
 use lambda_http::{Body, Request, Response, run, service_fn};
 use multisig_monitor_core::{
@@ -30,7 +29,7 @@ async fn handler(req: Request) -> Result<Response<Body>, lambda_runtime::Error> 
     let method = parts.method.as_str();
 
     match (method, path) {
-        ("GET", "/health") => match Config::from_env() {
+        ("GET", "/health") => match config::from_env() {
             Ok(_) => Ok(Response::builder()
                 .status(200)
                 .header("Content-Type", "application/json")
@@ -44,7 +43,7 @@ async fn handler(req: Request) -> Result<Response<Body>, lambda_runtime::Error> 
         },
 
         ("POST", "/webhook") => {
-            let config = Config::from_env()?;
+            let config = config::from_env()?;
             handle_webhook(&parts.headers, body, &config).await
         }
 
@@ -57,7 +56,7 @@ async fn handler(req: Request) -> Result<Response<Body>, lambda_runtime::Error> 
 async fn handle_webhook(
     headers: &lambda_http::http::HeaderMap,
     body: Body,
-    config: &Config,
+    config: &config::Config,
 ) -> Result<Response<Body>, lambda_runtime::Error> {
     // Validate auth
     let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
