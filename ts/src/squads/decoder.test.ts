@@ -99,6 +99,34 @@ describe("decoder", () => {
     }
   });
 
+  it("returns fallback when a config action vec length exceeds remaining data", async () => {
+    const args = new Uint8Array([2, 0, 0, 0]);
+    const data = await makeInstructionData("config_transaction_create", args);
+    const op = buildOperation("config_transaction_create", data);
+
+    expect(op).toEqual({ kind: "config_transaction_create", actions: [] });
+  });
+
+  it("returns fallback when a nested vec length exceeds remaining data", async () => {
+    const args = new Uint8Array(4 + 1 + 32 + 1 + 32 + 8 + 1 + 4);
+    let offset = 0;
+
+    args.set([1, 0, 0, 0], offset);
+    offset += 4;
+    args[offset++] = 4;
+    offset += 32;
+    args[offset++] = 7;
+    offset += 32;
+    offset += 8;
+    args[offset++] = 0;
+    args.set([2, 0, 0, 0], offset);
+
+    const data = await makeInstructionData("config_transaction_create", args);
+    const op = buildOperation("config_transaction_create", data);
+
+    expect(op).toEqual({ kind: "config_transaction_create", actions: [] });
+  });
+
   it("decodes simple instructions without args", async () => {
     const data = await makeInstructionData("proposal_approve");
     const op = buildOperation("proposal_approve", data);
