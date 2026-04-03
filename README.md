@@ -27,9 +27,9 @@ Both implementations produce identical Slack notifications, support the same con
 multisig-monitor/
 ├── README.md
 ├── examples/                               # Deployment and setup guides
-│   ├── cloudflare-worker.md                # Rust → Cloudflare Workers
-│   ├── aws-lambda.md                       # Rust → AWS Lambda
-│   ├── local-development.md                # Rust local dev
+│   ├── rust-cloudflare-worker.md           # Rust → Cloudflare Workers
+│   ├── rust-aws-lambda.md                  # Rust → AWS Lambda
+│   ├── rust-local-development.md           # Rust local dev
 │   ├── typescript-cloudflare-worker.md     # TypeScript → Cloudflare Workers
 │   ├── typescript-vercel.md                # TypeScript → Vercel Edge Functions
 │   └── typescript-local-development.md     # TypeScript local dev
@@ -58,6 +58,7 @@ multisig-monitor/
     ├── src/
     │   ├── index.ts                        # Shared fetch handler
     │   ├── config.ts                       # Env var parsing
+    │   ├── handler.ts                      # Webhook request handler
     │   ├── filter.ts                       # Notification filtering
     │   ├── webhook.ts                      # Auth validation, payload types
     │   ├── slack.ts                        # Slack Block Kit payload building
@@ -138,6 +139,10 @@ SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX
 |---|---|---|
 | `INSTRUCTION_TYPES` | `""` (all) | Comma-separated list of Squads instruction types to notify on. If empty or omitted, all instruction types generate notifications. |
 | `CONFIG_TYPES` | `""` (all) | Comma-separated list of config action types to include in `config_transaction_create` notifications. If empty or omitted, all config action types are included. **Ignored if `config_transaction_create` is not in `INSTRUCTION_TYPES` (when `INSTRUCTION_TYPES` is explicitly set).** |
+| `SHOW_PERMISSIONS` | `false` | Show member permission badges on relevant operations (`true`/`false`). |
+| `SHOW_TIMESTAMPS` | `false` | Include block timestamp in notifications (`true`/`false`). |
+| `TRUNCATE_ADDRESSES` | `false` | Shorten addresses in display text while keeping full addresses in code blocks (`true`/`false`). |
+| `LOG_LEVEL` | `error` | Structured log verbosity: `error`, `info`, or `debug`. |
 
 **Example — monitor only proposal votes and config changes:**
 

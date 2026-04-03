@@ -23,6 +23,10 @@ INSTRUCTION_TYPES = ""
 # Valid values: add_member, remove_member, change_threshold,
 #   set_time_lock, add_spending_limit, remove_spending_limit, set_rent_collector
 CONFIG_TYPES = ""
+SHOW_PERMISSIONS = ""
+SHOW_TIMESTAMPS = ""
+TRUNCATE_ADDRESSES = ""
+LOG_LEVEL = ""
 
 # Secrets (set via `wrangler secret put`):
 # HELIUS_AUTH_TOKEN  — shared secret for webhook auth header validation
