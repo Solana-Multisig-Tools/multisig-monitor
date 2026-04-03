@@ -2,6 +2,7 @@ mod config;
 
 use config::Config;
 use multisig_monitor_core::error::MonitorError;
+use multisig_monitor_core::log::{LogLevel, log_json};
 use multisig_monitor_core::{slack, squads, webhook};
 use worker::*;
 
@@ -39,13 +40,22 @@ async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<Respo
     let operations =
         squads::extract_operations(&transactions, &config.multisig_addresses, &config.filter);
 
+    if let Some(json) = log_json(LogLevel::Info, config.log_level, "webhook processed", Some(serde_json::json!({
+        "transactions": transactions.len(),
+        "operations": operations.len(),
+    }))) {
+        console_log!("{json}");
+    }
+
     let slack_futures = operations
         .iter()
         .map(|op| send_slack(op, &config.slack_webhook_url, &config.display));
     let results = futures::future::join_all(slack_futures).await;
     for result in results {
-        if let Err(e) = result {
-            console_error!("slack notification failed: {e}");
+        if let Err(e) = result
+            && let Some(json) = log_json(LogLevel::Error, config.log_level, "slack notification failed", Some(serde_json::json!({ "error": e.to_string() })))
+        {
+            console_error!("{json}");
         }
     }
 

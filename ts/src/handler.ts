@@ -1,4 +1,5 @@
 import { loadConfig, type Env } from "./config.js";
+import { logError, logInfo, setLogLevel } from "./log.js";
 import { sendNotification } from "./slack.js";
 import { extractOperations } from "./squads/index.js";
 import { parsePayload, validateAuth } from "./webhook.js";
@@ -10,8 +11,10 @@ export async function handleWebhook(
   let appConfig;
   try {
     appConfig = loadConfig(env);
+    setLogLevel(appConfig.logLevel);
   } catch (e) {
-    return new Response(`config error: ${e}`, { status: 500 });
+    logError("config load failed", { error: String(e) });
+    return new Response("internal error", { status: 500 });
   }
 
   const authHeader = request.headers.get("Authorization");
@@ -40,7 +43,8 @@ export async function handleWebhook(
   try {
     transactions = parsePayload(body);
   } catch (e) {
-    return new Response(`bad request: ${e}`, { status: 400 });
+    logError("payload parse failed", { error: String(e) });
+    return new Response("bad request", { status: 400 });
   }
 
   const operations = await extractOperations(
@@ -49,12 +53,17 @@ export async function handleWebhook(
     appConfig.filter,
   );
 
+  logInfo("webhook processed", {
+    transactions: transactions.length,
+    operations: operations.length,
+  });
+
   const results = await Promise.allSettled(
     operations.map((op) => sendNotification(op, appConfig.slackWebhookUrl, appConfig.display)),
   );
   for (const result of results) {
     if (result.status === "rejected") {
-      console.error("slack notification failed:", result.reason);
+      logError("slack notification failed", { error: String(result.reason) });
     }
   }
 

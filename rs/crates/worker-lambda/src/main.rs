@@ -2,6 +2,7 @@ mod config;
 
 use config::Config;
 use lambda_http::{Body, Request, Response, run, service_fn};
+use multisig_monitor_core::log::{LogLevel, log_json};
 use multisig_monitor_core::{slack, squads, webhook};
 use tracing_subscriber::EnvFilter;
 
@@ -46,7 +47,9 @@ async fn handle_webhook(
     let auth_header = headers.get("Authorization").and_then(|v| v.to_str().ok());
 
     if let Err(e) = webhook::validate_auth(auth_header, &config.helius_auth_token) {
-        tracing::warn!("auth failed: {e}");
+        if let Some(json) = log_json(LogLevel::Error, config.log_level, "auth failed", Some(serde_json::json!({ "error": e.to_string() }))) {
+            eprintln!("{json}");
+        }
         return Ok(Response::builder()
             .status(401)
             .body(Body::Text("unauthorized".to_string()))?);
@@ -68,7 +71,9 @@ async fn handle_webhook(
     let transactions = match webhook::parse_payload(&body_str) {
         Ok(txs) => txs,
         Err(e) => {
-            tracing::error!("payload parse failed: {e}");
+            if let Some(json) = log_json(LogLevel::Error, config.log_level, "payload parse failed", Some(serde_json::json!({ "error": e.to_string() }))) {
+                eprintln!("{json}");
+            }
             return Ok(Response::builder()
                 .status(400)
                 .body(Body::Text(format!("bad request: {e}")))?);
@@ -78,14 +83,23 @@ async fn handle_webhook(
     let operations =
         squads::extract_operations(&transactions, &config.multisig_addresses, &config.filter);
 
+    if let Some(json) = log_json(LogLevel::Info, config.log_level, "webhook processed", Some(serde_json::json!({
+        "transactions": transactions.len(),
+        "operations": operations.len(),
+    }))) {
+        println!("{json}");
+    }
+
     let client = reqwest::Client::new();
     let slack_futures = operations
         .iter()
         .map(|op| send_slack(&client, op, &config.slack_webhook_url, &config.display));
     let results = futures::future::join_all(slack_futures).await;
     for result in results {
-        if let Err(e) = result {
-            tracing::error!("slack notification failed: {e}");
+        if let Err(e) = result
+            && let Some(json) = log_json(LogLevel::Error, config.log_level, "slack notification failed", Some(serde_json::json!({ "error": e.to_string() })))
+        {
+            eprintln!("{json}");
         }
     }
 
