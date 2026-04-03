@@ -197,14 +197,33 @@ export async function sendNotification(
   display: DisplayConfig,
 ): Promise<void> {
   const payload = buildPayload(op, display);
+  const body = JSON.stringify(payload);
 
   const resp = await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body,
   });
 
-  if (!resp.ok) {
-    throw new Error(`slack returned status ${resp.status}`);
+  if (resp.ok) return;
+
+  // Retry once on transient errors (rate limit or server error)
+  if (resp.status === 429 || resp.status >= 500) {
+    await sleep(1000);
+    const retry = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    if (!retry.ok) {
+      throw new Error(`slack returned status ${retry.status} after retry`);
+    }
+    return;
   }
+
+  throw new Error(`slack returned status ${resp.status}`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

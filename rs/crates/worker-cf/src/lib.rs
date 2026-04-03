@@ -69,29 +69,58 @@ async fn send_slack(
 ) -> std::result::Result<(), MonitorError> {
     let body = slack::serialize_payload(op, display)?;
 
-    let headers = Headers::new();
-    headers
-        .set("Content-Type", "application/json")
+    // First attempt
+    let status = {
+        let headers = Headers::new();
+        headers
+            .set("Content-Type", "application/json")
+            .map_err(|e| MonitorError::Platform(e.to_string()))?;
+        let req = Request::new_with_init(
+            webhook_url,
+            RequestInit::new()
+                .with_method(Method::Post)
+                .with_headers(headers)
+                .with_body(Some(wasm_bindgen::JsValue::from_str(&body))),
+        )
         .map_err(|e| MonitorError::Platform(e.to_string()))?;
+        Fetch::Request(req)
+            .send()
+            .await
+            .map_err(|e| MonitorError::Platform(e.to_string()))?
+            .status_code()
+    };
 
-    let req = Request::new_with_init(
-        webhook_url,
-        RequestInit::new()
-            .with_method(Method::Post)
-            .with_headers(headers)
-            .with_body(Some(wasm_bindgen::JsValue::from_str(&body))),
-    )
-    .map_err(|e| MonitorError::Platform(e.to_string()))?;
-
-    let resp = Fetch::Request(req)
-        .send()
-        .await
-        .map_err(|e| MonitorError::Platform(e.to_string()))?;
-
-    match resp.status_code() {
-        200 => Ok(()),
-        status => Err(MonitorError::SlackSend { status }),
+    if status == 200 {
+        return Ok(());
     }
+
+    // Retry once on transient errors (rate limit or server error)
+    if status == 429 || status >= 500 {
+        let headers = Headers::new();
+        headers
+            .set("Content-Type", "application/json")
+            .map_err(|e| MonitorError::Platform(e.to_string()))?;
+        let req = Request::new_with_init(
+            webhook_url,
+            RequestInit::new()
+                .with_method(Method::Post)
+                .with_headers(headers)
+                .with_body(Some(wasm_bindgen::JsValue::from_str(&body))),
+        )
+        .map_err(|e| MonitorError::Platform(e.to_string()))?;
+        let retry_status = Fetch::Request(req)
+            .send()
+            .await
+            .map_err(|e| MonitorError::Platform(e.to_string()))?
+            .status_code();
+
+        if retry_status == 200 {
+            return Ok(());
+        }
+        return Err(MonitorError::SlackSend { status: retry_status });
+    }
+
+    Err(MonitorError::SlackSend { status })
 }
 
 fn to_worker_err(e: MonitorError) -> Error {

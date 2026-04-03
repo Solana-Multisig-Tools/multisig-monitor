@@ -2,6 +2,7 @@ mod config;
 
 use config::Config;
 use lambda_http::{Body, Request, Response, run, service_fn};
+use tokio::time::{Duration, sleep};
 use multisig_monitor_core::log::{LogLevel, log_json};
 use multisig_monitor_core::{slack, squads, webhook};
 use tracing_subscriber::EnvFilter;
@@ -119,14 +120,30 @@ async fn send_slack(
     let resp = client
         .post(webhook_url)
         .header("Content-Type", "application/json")
-        .body(body)
+        .body(body.clone())
         .send()
         .await?;
 
     let status = resp.status().as_u16();
-    if status != 200 {
-        return Err(format!("slack returned status {status}").into());
+    if status == 200 {
+        return Ok(());
     }
 
-    Ok(())
+    // Retry once on transient errors (rate limit or server error)
+    if status == 429 || status >= 500 {
+        sleep(Duration::from_secs(1)).await;
+        let retry = client
+            .post(webhook_url)
+            .header("Content-Type", "application/json")
+            .body(body)
+            .send()
+            .await?;
+        let retry_status = retry.status().as_u16();
+        if retry_status != 200 {
+            return Err(format!("slack returned status {retry_status} after retry").into());
+        }
+        return Ok(());
+    }
+
+    Err(format!("slack returned status {status}").into())
 }
