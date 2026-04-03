@@ -2,8 +2,10 @@ use borsh::BorshDeserialize;
 #[cfg(test)]
 use borsh::BorshSerialize;
 
-use crate::error::MonitorError;
-use crate::squads::types::{ConfigChange, MemberEntry, Permissions};
+use crate::{
+    error::MonitorError,
+    squads::types::{ConfigChange, MemberEntry, Permissions},
+};
 
 // ---------------------------------------------------------------------------
 // Raw on-chain types (Borsh layout)

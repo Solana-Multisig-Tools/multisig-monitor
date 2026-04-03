@@ -1,6 +1,10 @@
-use crate::error::MonitorError;
-use crate::squads::discriminator::InstructionKind;
-use crate::squads::types::{ConfigChange, SquadsOperation};
+use crate::{
+    error::MonitorError,
+    squads::{
+        discriminator::InstructionKind,
+        types::{ConfigChange, SquadsOperation},
+    },
+};
 
 /// Controls which operations produce notifications.
 ///

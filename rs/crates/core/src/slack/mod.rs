@@ -1,8 +1,10 @@
 pub mod types;
 
-use crate::error::MonitorError;
-use crate::log::DisplayConfig;
-use crate::squads::types::{DetectedOperation, SquadsOperation, truncate_address};
+use crate::{
+    error::MonitorError,
+    log::DisplayConfig,
+    squads::types::{DetectedOperation, SquadsOperation, truncate_address},
+};
 use types::{SlackBlock, SlackPayload};
 
 fn format_address(address: &str, display: &DisplayConfig) -> String {
