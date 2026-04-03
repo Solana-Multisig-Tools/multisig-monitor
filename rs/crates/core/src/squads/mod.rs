@@ -5,8 +5,10 @@ pub mod types;
 
 use std::collections::HashMap;
 
-use crate::filter::NotificationFilter;
-use crate::webhook::types::{CompiledInstruction, RawTransaction};
+use crate::{
+    filter::NotificationFilter,
+    webhook::types::{CompiledInstruction, RawTransaction},
+};
 use accounts::{layout_for, resolve_pubkey};
 use config_action::*;
 use discriminator::{InstructionKind, build_discriminator_map, match_discriminator};

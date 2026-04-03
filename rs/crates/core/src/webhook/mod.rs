@@ -11,7 +11,11 @@ use subtle::ConstantTimeEq;
 pub fn validate_auth(auth_header: Option<&str>, expected_token: &str) -> Result<(), MonitorError> {
     let header = auth_header.ok_or(MonitorError::Unauthorized)?;
     if header.len() != expected_token.len()
-        || header.as_bytes().ct_eq(expected_token.as_bytes()).unwrap_u8() != 1
+        || header
+            .as_bytes()
+            .ct_eq(expected_token.as_bytes())
+            .unwrap_u8()
+            != 1
     {
         return Err(MonitorError::Unauthorized);
     }
