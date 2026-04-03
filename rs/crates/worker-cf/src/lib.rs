@@ -20,16 +20,31 @@ async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<Respo
     let config = Config::from_env(&ctx.env).map_err(to_worker_err)?;
 
     let auth_header = req.headers().get("Authorization").ok().flatten();
-    webhook::validate_auth(auth_header.as_deref(), &config.helius_auth_token)
-        .map_err(|_| Error::RustError("unauthorized".to_string()))?;
+    if webhook::validate_auth(auth_header.as_deref(), &config.helius_auth_token).is_err() {
+        return Response::error("unauthorized", 401);
+    }
+
+    const MAX_BODY_SIZE: usize = 5 * 1024 * 1024; // 5 MB
+    if let Some(cl) = req.headers().get("content-length").ok().flatten()
+        && cl.parse::<usize>().unwrap_or(0) > MAX_BODY_SIZE
+    {
+        return Response::error("payload too large", 413);
+    }
 
     let body = req.text().await?;
+    if body.len() > MAX_BODY_SIZE {
+        return Response::error("payload too large", 413);
+    }
     let transactions = webhook::parse_payload(&body).map_err(to_worker_err)?;
     let operations =
         squads::extract_operations(&transactions, &config.multisig_addresses, &config.filter);
 
-    for op in &operations {
-        if let Err(e) = send_slack(op, &config.slack_webhook_url).await {
+    let slack_futures = operations
+        .iter()
+        .map(|op| send_slack(op, &config.slack_webhook_url, &config.display));
+    let results = futures::future::join_all(slack_futures).await;
+    for result in results {
+        if let Err(e) = result {
             console_error!("slack notification failed: {e}");
         }
     }
@@ -40,8 +55,9 @@ async fn handle_webhook(mut req: Request, ctx: RouteContext<()>) -> Result<Respo
 async fn send_slack(
     op: &squads::types::DetectedOperation,
     webhook_url: &str,
+    display: &multisig_monitor_core::log::DisplayConfig,
 ) -> std::result::Result<(), MonitorError> {
-    let body = slack::serialize_payload(op)?;
+    let body = slack::serialize_payload(op, display)?;
 
     let headers = Headers::new();
     headers

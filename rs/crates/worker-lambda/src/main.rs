@@ -53,11 +53,17 @@ async fn handle_webhook(
     }
 
     // Parse body
+    const MAX_BODY_SIZE: usize = 5 * 1024 * 1024; // 5 MB
     let body_str = match body {
         Body::Text(s) => s,
         Body::Binary(b) => String::from_utf8(b)?,
         Body::Empty => String::new(),
     };
+    if body_str.len() > MAX_BODY_SIZE {
+        return Ok(Response::builder()
+            .status(413)
+            .body(Body::Text("payload too large".to_string()))?);
+    }
 
     let transactions = match webhook::parse_payload(&body_str) {
         Ok(txs) => txs,
@@ -73,8 +79,12 @@ async fn handle_webhook(
         squads::extract_operations(&transactions, &config.multisig_addresses, &config.filter);
 
     let client = reqwest::Client::new();
-    for op in &operations {
-        if let Err(e) = send_slack(&client, op, &config.slack_webhook_url).await {
+    let slack_futures = operations
+        .iter()
+        .map(|op| send_slack(&client, op, &config.slack_webhook_url, &config.display));
+    let results = futures::future::join_all(slack_futures).await;
+    for result in results {
+        if let Err(e) = result {
             tracing::error!("slack notification failed: {e}");
         }
     }
@@ -88,8 +98,9 @@ async fn send_slack(
     client: &reqwest::Client,
     op: &squads::types::DetectedOperation,
     webhook_url: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let body = slack::serialize_payload(op)?;
+    display: &multisig_monitor_core::log::DisplayConfig,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let body = slack::serialize_payload(op, display)?;
 
     let resp = client
         .post(webhook_url)
