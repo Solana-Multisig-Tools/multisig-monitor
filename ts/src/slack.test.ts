@@ -12,6 +12,7 @@ function makeOp(operation: SquadsOperation): DetectedOperation {
     transactionAddress: null,
     proposalAddress: null,
     operation,
+    blockTime: null,
   };
 }
 

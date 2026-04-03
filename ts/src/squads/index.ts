@@ -27,6 +27,8 @@ export async function extractOperations(
   for (const tx of transactions) {
     if (tx.meta?.err) continue;
 
+    const blockTime = tx.blockTime ?? null;
+
     const signature =
       tx.signature ?? tx.transaction.signatures[0] ?? undefined;
     if (!signature) continue;
@@ -43,6 +45,7 @@ export async function extractOperations(
         monitoredMultisigs,
         discMap,
         filter,
+        blockTime,
       );
       if (op) results.push(op);
     }
@@ -57,6 +60,7 @@ export async function extractOperations(
             monitoredMultisigs,
             discMap,
             filter,
+            blockTime,
           );
           if (op) results.push(op);
         }
@@ -80,6 +84,7 @@ function processInstruction(
   monitoredMultisigs: readonly string[],
   discMap: Map<string, InstructionKind>,
   filter: NotificationFilter,
+  blockTime: number | null,
 ): DetectedOperation | null {
   const programId = accountKeys[instr.programIdIndex];
   if (programId !== SQUADS_PROGRAM_ID) return null;
@@ -134,5 +139,6 @@ function processInstruction(
     transactionAddress,
     proposalAddress,
     operation: filtered,
+    blockTime,
   };
 }

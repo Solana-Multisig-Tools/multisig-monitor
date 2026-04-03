@@ -155,6 +155,7 @@ mod tests {
             transaction_address: None,
             proposal_address: None,
             operation,
+            block_time: None,
         }
     }
 

@@ -39,6 +39,8 @@ fn extract_from_transaction(
         None => return vec![],
     };
 
+    let block_time = tx.block_time;
+
     // Resolve AccountKeyEntry (plain string or structured object) to plain pubkey strings
     let account_keys: Vec<String> = tx
         .transaction
@@ -61,6 +63,7 @@ fn extract_from_transaction(
                 monitored_multisigs,
                 disc_map,
                 filter,
+                block_time,
             )
         });
 
@@ -79,6 +82,7 @@ fn extract_from_transaction(
                 monitored_multisigs,
                 disc_map,
                 filter,
+                block_time,
             )
         });
 
@@ -92,6 +96,7 @@ fn process_instruction(
     monitored_multisigs: &[String],
     disc_map: &HashMap<[u8; 8], InstructionKind>,
     filter: &NotificationFilter,
+    block_time: Option<i64>,
 ) -> Option<DetectedOperation> {
     let program_id = account_keys.get(instr.program_id_index as usize)?;
     if program_id != SQUADS_PROGRAM_ID {
@@ -132,6 +137,7 @@ fn process_instruction(
         transaction_address,
         proposal_address,
         operation,
+        block_time,
     })
 }
 
