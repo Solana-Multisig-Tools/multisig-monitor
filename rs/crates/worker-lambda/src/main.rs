@@ -80,7 +80,7 @@ async fn handle_webhook(
     let body_str = match body {
         Body::Text(s) => s,
         Body::Binary(b) => String::from_utf8(b)?,
-        Body::Empty => String::new(),
+        other => String::from_utf8(other.to_vec())?,
     };
     if body_str.len() > MAX_BODY_SIZE {
         return Ok(Response::builder()
